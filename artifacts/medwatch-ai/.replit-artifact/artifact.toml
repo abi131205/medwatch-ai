@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "MedWatch AI"
+version = "1.0.0"
+id = "artifacts/medwatch-ai"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18926
+
+[services.development]
+run = "pnpm --filter @workspace/medwatch-ai run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/medwatch-ai", "run", "build" ]
+publicDir = "artifacts/medwatch-ai/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18926"
+BASE_PATH = "/"

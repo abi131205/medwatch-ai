@@ -1,0 +1,850 @@
+MedWatch AI — Replit Agent Brief
+
+1. APP OVERVIEW
+App Name: MedWatch AI
+Tagline: Real-time patient safety intelligence from fragmented signals to actionable insights.
+Core Problem It Solves:
+Patient safety signals (adverse drug reactions, hospital complaints, treatment complications) are scattered across social media, WhatsApp forwards, and informal channels in India. No unified system monitors, classifies, or clusters these signals in real time — causing delayed responses to emerging health risks.
+Target Users:
+
+Public health officials and pharmacovigilance officers
+Hospital quality & safety teams
+District health officers (urban: Bengaluru; rural: Raichur)
+NGO health workers and field coordinators
+
+
+2. FULL FEATURE LIST
+🔴 Core (Must Have)
+
+Signal Ingestion Dashboard — Accept and display incoming patient safety reports from multiple simulated sources (social media text, WhatsApp-style messages, hospital feedback forms)
+AI-Powered NLP Analysis — Send report text to Claude API; extract: drug/symptom entities, risk classification (Critical / High / Medium / Low), signal category (ADR, hospital issue, outbreak signal, treatment complication)
+Real-Time Risk Feed — Live scrolling feed of all incoming signals with color-coded risk badges
+Geographic Cluster Map — Interactive India map (Leaflet.js) showing signal clusters by district/city with heatmap overlay; filter by Bengaluru (urban) vs Raichur (rural)
+Signal Detail View — Full breakdown of each report: original text, NLP-extracted entities, risk level, category, location, timestamp, recommended action
+Analytics Dashboard — Charts showing: signals over time, risk distribution pie chart, top drugs flagged, top hospitals mentioned, urban vs rural breakdown
+Manual Report Submission — Form for health workers to manually submit a patient safety report
+Alert System — Auto-generate alerts when 3+ Critical signals cluster in the same district within 24 hours
+
+🟡 High Value (Should Have)
+
+Trend Detection Panel — Surface emerging patterns: "5 ADR reports mentioning Metformin in Raichur in last 6 hours"
+Source Tagging — Tag each signal by source type: Social Media / WhatsApp / Hospital Form / Field Worker
+Export Report — Download filtered signals as CSV
+Search & Filter — Filter feed by risk level, category, source, date range, location
+Signal Timeline — Chronological view of how a cluster evolved over time
+
+🟢 Nice-to-Have
+
+Multilingual Input Simulation — Show Kannada/Hindi text being processed and transliterated
+Recommended Actions Panel — AI-generated response recommendations per signal cluster
+Dark Mode Toggle
+
+
+3. TECH STACK
+LayerTechnologyFrontendReact 18 + ViteStylingTailwind CSS + shadcn/ui componentsChartsRechartsMapLeaflet.js + React-LeafletBackendNode.js + Express.jsDatabaseSQLite via better-sqlite3 (file-based, zero setup)AI/NLPAnthropic Claude API (claude-sonnet-4-20250514) via /v1/messagesState ManagementReact Context + useState/useEffectHTTP ClientAxiosDate handlingdate-fnsIconsLucide ReactCSV ExportPapaParse
+Do NOT use: TypeScript (keep it plain JS for speed), Docker, Redis, or any paid APIs beyond Claude.
+
+4. PAGES & USER FLOW
+Page 1: / — Landing / Login Screen
+
+App logo + tagline
+Two entry buttons: "Enter as Health Official" and "Enter as Field Worker"
+Both lead to the main dashboard (role is stored in localStorage, no real auth needed)
+Animated pulse on logo; background shows a subtle India map watermark
+
+Page 2: /dashboard — Main Command Center
+
+Top navbar: Logo, role badge, dark mode toggle, notification bell (shows alert count)
+Left sidebar: Navigation links to all sections
+Main area (grid layout):
+
+Top row: 4 KPI cards (Total Signals Today, Critical Alerts, Districts Affected, Signals This Hour)
+Middle row: Signal Risk Feed (left, 60%) + Trend Detection Panel (right, 40%)
+Bottom row: Analytics charts (signals over time line chart + risk distribution pie)
+
+
+Auto-refreshes feed every 15 seconds (simulated with new mock data injection)
+
+Page 3: /map — Geographic Cluster Map
+
+Full-width Leaflet map centered on India
+Circle markers on districts; size = signal volume; color = highest risk level in cluster
+Sidebar panel listing top 5 hotspot districts
+Click a marker → popup shows district name, signal count, top category, top drug flagged
+Filter bar: Urban / Rural / All | Risk Level | Time Range (last 1h / 6h / 24h / 7d)
+Heatmap layer toggle
+
+Page 4: /signals — Signal Feed & Management
+
+Searchable, filterable table of all signals
+Columns: ID, Timestamp, Source, Location, Category, Risk Level, Top Entity, Actions
+Click any row → opens Signal Detail modal
+Filters: risk level checkboxes, category dropdown, source dropdown, date range picker
+"Export CSV" button at top right
+
+Page 5: /signals/:id — Signal Detail View (Modal or Page)
+
+Original report text (highlighted entities using colored spans)
+NLP Analysis card: extracted drugs, symptoms, hospitals; risk score; category
+Location + timestamp
+Source badge
+"Recommended Action" box (AI-generated)
+"Mark as Reviewed" button (updates status in DB)
+"Escalate Alert" button
+
+Page 6: /submit — Manual Report Submission
+
+Form fields:
+
+Reporter type (dropdown: Field Worker / Patient / Hospital Staff / Community Member)
+Location (district dropdown — include Bengaluru, Raichur, Mysuru, Hubli, Mangaluru, Bellary, Davangere, Kolar)
+Source type (Social Media / WhatsApp / Direct Report / Hospital Form)
+Report text (textarea, min 20 chars)
+Drug name (optional text field)
+Hospital name (optional text field)
+Date of incident (date picker)
+
+
+On submit → POST to /api/signals/analyze → shows NLP result inline before saving
+Success toast notification
+
+Page 7: /alerts — Alert Center
+
+List of auto-generated cluster alerts
+Each alert card: affected district, signal count, time window, risk level, cluster summary
+"Acknowledge" and "Escalate to State Health Dept" action buttons
+Alert history log
+
+Page 8: /analytics — Deep Analytics
+
+Line chart: Signals per hour for last 24h (total + by risk level)
+Bar chart: Top 10 drugs flagged
+Bar chart: Top 10 hospitals mentioned
+Pie chart: Signal category distribution
+Bar chart: Urban vs Rural signal volume comparison
+District-level heatmap table (sortable)
+
+
+5. UI & DESIGN INSTRUCTIONS
+Color Scheme
+Background:        #0F1117 (near-black, dark dashboard feel)
+Surface/Card:      #1A1D27
+Border:            #2A2D3E
+Primary Accent:    #6366F1 (indigo)
+Secondary Accent:  #22D3EE (cyan)
+Critical Risk:     #EF4444 (red)
+High Risk:         #F97316 (orange)
+Medium Risk:       #EAB308 (yellow)
+Low Risk:          #22C55E (green)
+Text Primary:      #F1F5F9
+Text Secondary:    #94A3B8
+Typography
+
+Font: Inter (Google Fonts)
+Dashboard headings: 600 weight
+Body: 400 weight
+Monospace for signal IDs and timestamps: JetBrains Mono
+
+Layout Style
+
+Dark, dense, professional — like a real government/pharma safety dashboard
+Sidebar is fixed, 240px wide, collapsible on mobile
+Cards have subtle glassmorphism: backdrop-filter: blur(10px), slight border glow on hover
+All KPI cards animate count-up on load
+Risk badges are pill-shaped with matching background tint
+
+Specific UI Components
+
+Risk Badge: Colored pill with icon (🔴 Critical, 🟠 High, 🟡 Medium, 🟢 Low)
+Signal Feed Row: Left border colored by risk level, source icon, truncated text, timestamp
+Alert Banner: Pulsing red bar at top of dashboard when Critical cluster detected
+Loading State: Skeleton loaders for all cards and feed items
+Toast Notifications: Bottom-right, auto-dismiss after 4 seconds
+Map Markers: Animated pulse ring on Critical clusters
+
+
+6. DATA & APIS
+Database Schema (SQLite)
+Table: signals
+sqlCREATE TABLE signals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  incident_date DATE,
+  source_type TEXT,         -- 'social_media' | 'whatsapp' | 'hospital_form' | 'field_worker'
+  location_district TEXT,
+  location_type TEXT,       -- 'urban' | 'rural'
+  raw_text TEXT,
+  reporter_type TEXT,
+  drug_name TEXT,
+  hospital_name TEXT,
+  risk_level TEXT,          -- 'critical' | 'high' | 'medium' | 'low'
+  category TEXT,            -- 'adr' | 'hospital_issue' | 'outbreak_signal' | 'treatment_complication'
+  extracted_entities TEXT,  -- JSON string
+  recommended_action TEXT,
+  status TEXT DEFAULT 'new', -- 'new' | 'reviewed' | 'escalated'
+  nlp_summary TEXT
+);
+Table: alerts
+sqlCREATE TABLE alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  district TEXT,
+  signal_count INTEGER,
+  time_window_hours INTEGER,
+  risk_level TEXT,
+  cluster_summary TEXT,
+  status TEXT DEFAULT 'active' -- 'active' | 'acknowledged' | 'escalated'
+);
+API Routes (Express Backend)
+GET  /api/signals              — Get all signals (with filters via query params)
+GET  /api/signals/:id          — Get single signal
+POST /api/signals/analyze      — Submit text → Claude NLP → return analysis + save
+PATCH /api/signals/:id/status  — Update signal status
+GET  /api/signals/stats/summary — KPI stats (counts, breakdowns)
+GET  /api/alerts               — Get all alerts
+POST /api/alerts/check         — Run cluster detection, create alerts if threshold met
+PATCH /api/alerts/:id/status   — Acknowledge or escalate alert
+GET  /api/analytics/timeseries — Signals grouped by hour for last 24h
+GET  /api/analytics/drugs      — Top flagged drugs
+GET  /api/analytics/hospitals  — Top flagged hospitals
+GET  /api/analytics/districts  — District-level breakdown
+Claude API Integration
+Endpoint: POST https://api.anthropic.com/v1/messages
+Model: claude-sonnet-4-20250514
+System prompt for NLP analysis:
+You are a pharmacovigilance AI assistant for India's patient safety monitoring system. 
+Analyze the given patient safety report and respond ONLY with a valid JSON object (no markdown, no explanation) with this exact structure:
+{
+  "risk_level": "critical|high|medium|low",
+  "category": "adr|hospital_issue|outbreak_signal|treatment_complication",
+  "extracted_entities": {
+    "drugs": ["list of drug names mentioned"],
+    "symptoms": ["list of symptoms mentioned"],
+    "hospitals": ["list of hospital/clinic names mentioned"],
+    "locations": ["list of locations mentioned"]
+  },
+  "nlp_summary": "2-sentence plain English summary of the safety concern",
+  "recommended_action": "1-2 sentence recommended response action for health officials"
+}
+Risk classification rules:
+- critical: life-threatening ADR, death reported, outbreak with 3+ cases
+- high: serious ADR requiring hospitalization, systemic hospital failure
+- medium: moderate ADR, repeated hospital complaints, 2 linked cases
+- low: mild ADR, single complaint, general feedback
+Mock Seed Data (50 pre-seeded signals)
+Seed the database with these 10 representative examples (expand to 50 by varying details):
+javascriptconst seedSignals = [
+  {
+    raw_text: "My father was given Metformin 500mg at Raichur District Hospital and within 2 hours he had severe vomiting and breathlessness. Doctor said it may be a reaction. Very scary experience.",
+    source_type: "whatsapp",
+    location_district: "Raichur",
+    location_type: "rural",
+    drug_name: "Metformin",
+    hospital_name: "Raichur District Hospital",
+    reporter_type: "family_member",
+    risk_level: "high",
+    category: "adr"
+  },
+  {
+    raw_text: "Victoria Hospital Bengaluru mein operation ke baad infection ho gaya. 3 patients same ward mein. Koi sun nahi raha. Please help.",
+    source_type: "social_media",
+    location_district: "Bengaluru",
+    location_type: "urban",
+    hospital_name: "Victoria Hospital",
+    reporter_type: "patient",
+    risk_level: "critical",
+    category: "hospital_issue"
+  },
+  {
+    raw_text: "Fever spreading fast in our village near Raichur. 6 children sick this week. Local PHC not responding. Same symptoms - rash and high temperature.",
+    source_type: "field_worker",
+    location_district: "Raichur",
+    location_type: "rural",
+    reporter_type: "field_worker",
+    risk_level: "critical",
+    category: "outbreak_signal"
+  },
+  {
+    raw_text: "Took Azithromycin prescribed at Manipal Hospital Bengaluru. Severe skin rash on day 3. Never had this before. Stopped taking it.",
+    source_type: "social_media",
+    location_district: "Bengaluru",
+    location_type: "urban",
+    drug_name: "Azithromycin",
+    hospital_name: "Manipal Hospital",
+    reporter_type: "patient",
+    risk_level: "medium",
+    category: "adr"
+  },
+  {
+    raw_text: "Insulin dosage wrong at Hubli government clinic. Patient went into hypoglycemic shock. Family very upset. This is 2nd such case this month.",
+    source_type: "hospital_form",
+    location_district: "Hubli",
+    location_type: "urban",
+    drug_name: "Insulin",
+    hospital_name: "Hubli Government Clinic",
+    reporter_type: "hospital_staff",
+    risk_level: "critical",
+    category: "treatment_complication"
+  },
+  {
+    raw_text: "Amlodipine se mujhe bohot chakkar aa rahe hain. Mysuru ke doctor ne diya tha BP ke liye. Kya yeh normal hai?",
+    source_type: "whatsapp",
+    location_district: "Mysuru",
+    location_type: "urban",
+    drug_name: "Amlodipine",
+    reporter_type: "patient",
+    risk_level: "low",
+    category: "adr"
+  },
+  {
+    raw_text: "Multiple complaints received from Bellary villages. Same batch of ORS packets causing stomach pain. Possible contamination. 12 cases today.",
+    source_type: "field_worker",
+    location_district: "Bellary",
+    location_type: "rural",
+    drug_name: "ORS",
+    reporter_type: "field_worker",
+    risk_level: "critical",
+    category: "outbreak_signal"
+  },
+  {
+    raw_text: "Cetirizine gave my child tremors for 30 mins. Bought from medical store in Kolar. Very frightened. Doctor said possible overdose from wrong label.",
+    source_type: "social_media",
+    location_district: "Kolar",
+    location_type: "rural",
+    drug_name: "Cetirizine",
+    reporter_type: "family_member",
+    risk_level: "high",
+    category: "adr"
+  },
+  {
+    raw_text: "Mangaluru KMC Hospital staff was rude and gave wrong medicine to my mother. When we complained nobody listened. She had to be readmitted.",
+    source_type: "social_media",
+    location_district: "Mangaluru",
+    location_type: "urban",
+    hospital_name: "KMC Hospital",
+    reporter_type: "family_member",
+    risk_level: "medium",
+    category: "hospital_issue"
+  },
+  {
+    raw_text: "Davangere area mein paani peekar 4 log beemar pade. Diarrhoea aur ulti. Could be waterborne outbreak near PHC area.",
+    source_type: "whatsapp",
+    location_district: "Davangere",
+    location_type: "rural",
+    reporter_type: "community_member",
+    risk_level: "high",
+    category: "outbreak_signal"
+  }
+];
+Generate 40 more similar records programmatically at seed time by varying districts, drugs (use: Paracetamol, Atorvastatin, Amoxicillin, Omeprazole, Metformin, Enalapril, Diclofenac, Ranitidine, Clonazepam, Doxycycline), risk levels, and source types.
+Map Data
+Use hardcoded GeoJSON coordinates for Karnataka districts:
+javascriptconst districtCoordinates = {
+  "Bengaluru": [12.9716, 77.5946],
+  "Raichur": [16.2120, 77.3439],
+  "Mysuru": [12.2958, 76.6394],
+  "Hubli": [15.3647, 75.1240],
+  "Mangaluru": [12.9141, 74.8560],
+  "Bellary": [15.1394, 76.9214],
+  "Davangere": [14.4644, 75.9218],
+  "Kolar": [13.1360, 78.1294],
+  "Bidar": [17.9104, 77.5199],
+  "Vijayapura": [16.8302, 75.7100]
+};
+
+7. STEP-BY-STEP BUILD INSTRUCTIONS FOR REPLIT AGENT
+Follow these instructions exactly, in order. Do not skip any step.
+
+STEP 1: Project Initialization
+Create a monorepo structure:
+medwatch-ai/
+├── server/
+│   ├── index.js
+│   ├── db.js
+│   ├── seed.js
+│   └── routes/
+│       ├── signals.js
+│       ├── alerts.js
+│       └── analytics.js
+├── client/
+│   ├── src/
+│   │   ├── main.jsx
+│   │   ├── App.jsx
+│   │   ├── index.css
+│   │   ├── components/
+│   │   │   ├── Sidebar.jsx
+│   │   │   ├── Navbar.jsx
+│   │   │   ├── RiskBadge.jsx
+│   │   │   ├── KPICard.jsx
+│   │   │   ├── SignalRow.jsx
+│   │   │   ├── AlertCard.jsx
+│   │   │   └── SkeletonLoader.jsx
+│   │   └── pages/
+│   │       ├── Landing.jsx
+│   │       ├── Dashboard.jsx
+│   │       ├── MapView.jsx
+│   │       ├── SignalFeed.jsx
+│   │       ├── SignalDetail.jsx
+│   │       ├── SubmitReport.jsx
+│   │       ├── AlertCenter.jsx
+│   │       └── Analytics.jsx
+│   ├── index.html
+│   ├── vite.config.js
+│   └── package.json
+├── package.json
+└── .env
+
+STEP 2: Install Dependencies
+Root package.json:
+json{
+  "name": "medwatch-ai",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "node server/index.js",
+    "client": "cd client && npm run dev",
+    "seed": "node server/seed.js"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
+Server dependencies (install in /server or root):
+npm install express better-sqlite3 cors dotenv axios date-fns
+Client dependencies (install in /client):
+npm install react react-dom react-router-dom axios recharts leaflet react-leaflet lucide-react date-fns papaparse
+npm install -D vite @vitejs/plugin-react tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+
+STEP 3: Environment Variables
+Create .env in root:
+ANTHROPIC_API_KEY=your_key_here
+PORT=3001
+
+STEP 4: Build the Express Server (server/index.js)
+
+Load dotenv
+Initialize Express with CORS enabled for http://localhost:5173
+Mount routes: /api/signals → signals router, /api/alerts → alerts router, /api/analytics → analytics router
+Listen on process.env.PORT || 3001
+On startup, call initDB() from db.js then runSeed() from seed.js
+
+
+STEP 5: Build the Database Layer (server/db.js)
+
+Use better-sqlite3 to create/open medwatch.db
+Export function initDB() that runs CREATE TABLE IF NOT EXISTS for both signals and alerts tables using the schema defined in Section 6
+Export the db instance for use in routes
+
+
+STEP 6: Build the Seed Script (server/seed.js)
+
+Export function runSeed()
+Check if signals table already has rows; if yes, return early (don't re-seed)
+Insert all 10 example signals from Section 6
+Programmatically generate 40 more signals by:
+
+Randomly picking from: districts array, drugs array, source_types array, risk_levels array, categories array
+Using template sentences like: "Patient reported [symptom] after taking [drug] at [hospital] in [district]." with randomized values
+Setting created_at to random timestamps within the last 7 days
+Setting incident_date to match
+Pre-filling nlp_summary and recommended_action with plausible placeholder text so the feed is immediately populated
+Pre-filling extracted_entities as JSON string
+
+
+Insert all 50 rows
+
+
+STEP 7: Build Signal Routes (server/routes/signals.js)
+GET /api/signals
+
+Accept query params: risk_level, category, source_type, location_district, location_type, from_date, to_date, search, limit (default 100), offset (default 0)
+Build dynamic WHERE clause based on provided filters
+Return { signals: [...], total: count }
+
+GET /api/signals/:id
+
+Return single signal by ID or 404
+
+POST /api/signals/analyze
+
+Accept { raw_text, source_type, location_district, reporter_type, drug_name, hospital_name, incident_date }
+Call Claude API with the system prompt from Section 6
+Parse the JSON response from Claude
+Insert the signal into DB with all NLP-enriched fields
+Return the saved signal object including NLP results
+
+PATCH /api/signals/:id/status
+
+Accept { status } and update the signal
+
+GET /api/signals/stats/summary
+
+Return:
+
+json  {
+    "total_today": 0,
+    "critical_count": 0,
+    "districts_affected": 0,
+    "signals_last_hour": 0,
+    "by_risk": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+    "by_category": { "adr": 0, "hospital_issue": 0, "outbreak_signal": 0, "treatment_complication": 0 },
+    "by_location_type": { "urban": 0, "rural": 0 }
+  }
+
+STEP 8: Build Alert Routes (server/routes/alerts.js)
+GET /api/alerts
+
+Return all alerts ordered by created_at DESC
+
+POST /api/alerts/check
+
+Query: Find districts where 3+ signals with risk_level = 'critical' exist within last 24 hours
+For each such district not already alerted, insert a new alert
+Return list of newly created alerts
+
+PATCH /api/alerts/:id/status
+
+Update alert status to acknowledged or escalated
+
+
+STEP 9: Build Analytics Routes (server/routes/analytics.js)
+GET /api/analytics/timeseries
+
+Group signals by hour for last 24 hours
+Return array of { hour, total, critical, high, medium, low }
+
+GET /api/analytics/drugs
+
+Count signals grouped by drug_name where drug_name is not null
+Return top 10: [{ drug_name, count }]
+
+GET /api/analytics/hospitals
+
+Count signals grouped by hospital_name where not null
+Return top 10: [{ hospital_name, count }]
+
+GET /api/analytics/districts
+
+Group by district: count, risk breakdown, location_type
+Return all districts with signal data
+
+
+STEP 10: Configure Vite (client/vite.config.js)
+javascriptimport { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3001'
+    }
+  }
+})
+
+STEP 11: Configure Tailwind (client/tailwind.config.js)
+javascriptexport default {
+  content: ['./index.html', './src/**/*.{js,jsx}'],
+  theme: {
+    extend: {
+      colors: {
+        bg: '#0F1117',
+        surface: '#1A1D27',
+        border: '#2A2D3E',
+        primary: '#6366F1',
+        secondary: '#22D3EE',
+        critical: '#EF4444',
+        high: '#F97316',
+        medium: '#EAB308',
+        low: '#22C55E',
+      },
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      }
+    }
+  },
+  plugins: []
+}
+
+STEP 12: Global CSS (client/src/index.css)
+css@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #0F1117;
+  color: #F1F5F9;
+  font-family: 'Inter', sans-serif;
+}
+
+.glass-card {
+  background: rgba(26, 29, 39, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid #2A2D3E;
+  border-radius: 12px;
+}
+
+.glass-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+  transition: all 0.2s ease;
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+.count-up {
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+STEP 13: Build App Router (client/src/App.jsx)
+
+Use react-router-dom v6 BrowserRouter, Routes, Route
+Route / → Landing
+Route /dashboard → Dashboard
+Route /map → MapView
+Route /signals → SignalFeed
+Route /signals/:id → SignalDetail
+Route /submit → SubmitReport
+Route /alerts → AlertCenter
+Route /analytics → Analytics
+Wrap all routes except / in a layout component that renders <Sidebar /> + <Navbar /> + <main> content
+
+
+STEP 14: Build RiskBadge Component
+jsx// Props: level ('critical' | 'high' | 'medium' | 'low')
+// Renders a colored pill badge with icon and label
+const config = {
+  critical: { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: '🔴', label: 'Critical' },
+  high: { color: 'bg-orange-500/20 text-orange-400 border-orange-500/30', icon: '🟠', label: 'High' },
+  medium: { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: '🟡', label: 'Medium' },
+  low: { color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: '🟢', label: 'Low' },
+}
+
+STEP 15: Build KPICard Component
+
+Props: title, value, icon, color, subtitle
+Animate the number counting up from 0 to value on mount using useEffect with setInterval
+Display with glassmorphism card style
+Left border colored by color prop
+
+
+STEP 16: Build Sidebar Component
+
+Fixed left sidebar, 240px wide
+Logo at top: shield icon + "MedWatch AI" in indigo
+Nav items with Lucide icons:
+
+Dashboard (/dashboard) — LayoutDashboard icon
+Signal Map (/map) — Map icon
+Signal Feed (/signals) — Activity icon
+Submit Report (/submit) — PlusCircle icon
+Alert Center (/alerts) — Bell icon (with red dot if active alerts)
+Analytics (/analytics) — BarChart2 icon
+
+
+Active route highlighted with indigo background
+Bottom: role badge from localStorage
+
+
+STEP 17: Build Landing Page
+
+Full-screen dark background with subtle animated particle effect (CSS-only: floating dots)
+Centered content:
+
+Shield icon (Lucide, indigo, 64px)
+"MedWatch AI" in 3xl bold white
+Tagline in gray
+Two cards side by side: "Health Official" and "Field Worker"
+Each card: icon, role name, description, "Enter Dashboard →" button
+Button sets localStorage.setItem('role', roleValue) and navigates to /dashboard
+
+
+Animated gradient border on hover for cards
+
+
+STEP 18: Build Dashboard Page
+
+On mount: fetch /api/signals/stats/summary, /api/signals?limit=20, /api/alerts, /api/analytics/timeseries
+Show skeleton loaders while fetching
+If any critical alerts exist, show pulsing red banner at top: "⚠️ CRITICAL CLUSTER DETECTED — [N] districts require immediate attention"
+KPI row: 4 KPICard components — Total Today, Critical Alerts (red), Districts Affected, Last Hour
+Middle section:
+
+Left (60%): Live signal feed — list of latest 20 signals using SignalRow component, auto-refresh every 15s
+Right (40%): Trend panel — "Emerging Signals" list of top 5 pattern summaries (e.g., "3× Metformin ADR in Raichur in 6h"), sourced from grouping DB data server-side or computed client-side
+
+
+Bottom: Two charts side-by-side using Recharts:
+
+LineChart — signals over last 24h by risk level (4 colored lines)
+PieChart — signal category distribution with custom legend
+
+
+
+
+STEP 19: Build MapView Page
+
+Install and import Leaflet CSS in index.html: <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+Use react-leaflet MapContainer, TileLayer, CircleMarker, Popup, useMap
+Map center: [15.3173, 75.7139] (Karnataka center), zoom 7
+Tile layer: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+Fetch /api/analytics/districts on mount
+For each district with signals:
+
+Place CircleMarker at coordinates from districtCoordinates map
+Radius = Math.max(8, signalCount * 2) (capped at 40)
+Fill color = color matching highest risk level in district
+If any critical signals: add pulsing CSS ring (absolute positioned div via Leaflet DivIcon)
+On click: show Popup with district name, total signals, top category, top drug, "View Signals →" link
+
+
+Right sidebar panel (overlaid on map, glass card): Top 5 hotspot districts ranked by signal count
+Filter bar above map: Urban/Rural toggle, Risk Level multi-select, Time range selector
+Re-fetch and re-render markers on filter change
+
+
+STEP 20: Build SignalFeed Page
+
+Fetch /api/signals with current filter state
+Filter bar at top: search input, risk level checkboxes, category dropdown, source dropdown, date range inputs
+Table with columns: ID (monospace), Time, Source badge, Location, Category, Risk, Entities preview, Status
+Each row: left border color = risk level color; hover darkens row
+Click row → navigate to /signals/:id
+Pagination: show 25 per page with Previous/Next
+"Export CSV" button: use PapaParse to convert current filtered signals to CSV and trigger download
+"Refresh" button with spinning icon
+
+
+STEP 21: Build SignalDetail Page
+
+Fetch /api/signals/:id on mount
+Layout: two-column (details left, analysis right)
+Left column:
+
+"Original Report" card — raw text with entity highlighting (wrap drug names in <span class="text-indigo-400">, symptoms in <span class="text-yellow-400">, hospitals in <span class="text-cyan-400">)
+Metadata: Source badge, Reporter type, District, Incident date, Created at, Status pill
+
+
+Right column:
+
+"AI Analysis" card with RiskBadge, category label, NLP summary paragraph
+"Extracted Entities" section: three lists (Drugs, Symptoms, Hospitals) with colored tags
+"Recommended Action" card with green border
+
+
+Action buttons: "Mark as Reviewed" (PATCH status to 'reviewed'), "Escalate Alert" (PATCH status to 'escalated'), "← Back to Feed"
+Show toast on status update
+
+
+STEP 22: Build SubmitReport Page
+
+Controlled form using React state
+Fields as described in Page 6 of Section 4
+District dropdown: populate from districtCoordinates keys
+On submit:
+
+Validate: raw_text length ≥ 20 chars required
+Show loading spinner on button
+POST to /api/signals/analyze
+On success: show inline "Analysis Result" card below form with the NLP results (risk badge, summary, entities, recommended action)
+Show success toast: "Report submitted and analyzed successfully"
+Reset form after 3 seconds
+
+
+On API error: show red error message
+
+
+STEP 23: Build AlertCenter Page
+
+Fetch /api/alerts on mount
+Button "Run Cluster Detection" → POST /api/alerts/check → refetch alerts → show toast with count of new alerts found
+Alert cards: AlertCard component
+
+Header: pulsing red dot (if active) + district name + risk badge
+Body: signal count, time window, cluster summary text
+Footer: timestamp, "Acknowledge" button, "Escalate to State" button
+Acknowledged alerts: grayed out, no pulse
+
+
+Empty state: "No active alerts. System is monitoring..." with a scanning animation
+
+
+STEP 24: Build Analytics Page
+
+Fetch all 4 analytics endpoints on mount
+Grid layout of 6 charts using Recharts:
+
+LineChart (full width): Signals per hour last 24h — 4 lines (critical=red, high=orange, medium=yellow, low=green), CartesianGrid, XAxis, YAxis, Tooltip, Legend
+BarChart: Top 10 drugs flagged (horizontal bar, indigo fill)
+BarChart: Top 10 hospitals mentioned (horizontal bar, cyan fill)
+PieChart: Category distribution — 4 segments with custom colors
+BarChart: Urban vs Rural signal volume — grouped bars
+Sortable data table: district, total signals, critical count, top category — sort by any column on header click
+
+
+Each chart in a glass-card with title and subtitle
+Loading skeleton for each chart independently
+
+
+STEP 25: Add Auto-Refresh and Simulated Live Data
+
+In Dashboard, use setInterval every 15 seconds to re-fetch /api/signals?limit=20
+Also every 15 seconds, call a server endpoint POST /api/signals/simulate that:
+
+Picks a random signal template from the seed data
+Mutates it slightly (different timestamp, minor text variation)
+Inserts it into the DB WITHOUT calling Claude API (use pre-filled NLP values)
+Returns the new signal
+
+
+This makes the feed feel live during demo
+Add a subtle "LIVE" badge with pulsing green dot in the feed header
+
+
+STEP 26: Final Polish
+
+Add <title>MedWatch AI</title> and a shield favicon to index.html
+Add error boundaries: if any page fetch fails, show a friendly "Unable to load data. Retrying..." message with a retry button
+Ensure all pages have loading skeleton states using SkeletonLoader component (gray animated shimmer divs)
+Add smooth page transition: wrap <Routes> in a div with opacity-0 animate-fadeIn class on mount
+Ensure Leaflet map CSS does not conflict with Tailwind: import Leaflet CSS before Tailwind in HTML
+On mobile (< 768px): collapse sidebar to icon-only rail; stack KPI cards to 2×2 grid
+Run POST /api/alerts/check automatically on server startup after seeding to pre-populate alerts
+
+
+STEP 27: Start and Verify
+Run in order:
+
+npm install at root
+cd client && npm install
+npm run dev from root (starts both server on :3001 and client on :5173)
+Verify: open http://localhost:5173 — Landing page shows
+Click "Enter as Health Official" — Dashboard loads with 4 KPI cards, signal feed, charts
+Click "Signal Map" — Map loads with district markers
+Click "Submit Report" — Submit a test report text; Claude analysis result appears
+Click "Alert Center" — Click "Run Cluster Detection"; alerts appear
+Verify live feed: watch Dashboard for new signals appearing every 15 seconds
+
+
+IMPORTANT NOTES FOR REPLIT AGENT:
+
+Store the ANTHROPIC_API_KEY as a Replit Secret, not in plain .env
+If Claude API call fails, return a gracefully degraded response with risk_level: "medium", category: "adr", and a generic summary — never crash the submission flow
+All chart containers must have explicit height (e.g., height: 300px) or Recharts will not render
+Import Leaflet CSS globally — do not import it inside a component or the map will be unstyled
+The better-sqlite3 module uses native bindings — if it fails to install on Replit, fall back to sql.js (pure JS SQLite) with the same API surface
+Always JSON.parse(signal.extracted_entities) before rendering entity lists since they are stored as strings in SQLite

@@ -3,13 +3,20 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: MedWatch AI API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: signals
+    description: Patient safety signal operations
+  - name: alerts
+    description: Alert operations
+  - name: analytics
+    description: Analytics operations
+
 paths:
   /healthz:
     get:
@@ -24,6 +31,277 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /signals:
+    get:
+      operationId: getSignals
+      tags: [signals]
+      summary: Get all signals
+      parameters:
+        - name: risk_level
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [adr, hospital_issue, outbreak_signal, treatment_complication]
+        - name: source_type
+          in: query
+          schema:
+            type: string
+            enum: [social_media, whatsapp, hospital_form, field_worker]
+        - name: location_district
+          in: query
+          schema:
+            type: string
+        - name: location_type
+          in: query
+          schema:
+            type: string
+            enum: [urban, rural]
+        - name: from_date
+          in: query
+          schema:
+            type: string
+        - name: to_date
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of signals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignalsListResponse"
+
+  /signals/stats/summary:
+    get:
+      operationId: getSignalsSummary
+      tags: [signals]
+      summary: Get KPI summary stats
+      responses:
+        "200":
+          description: Summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignalSummary"
+
+  /signals/analyze:
+    post:
+      operationId: analyzeSignal
+      tags: [signals]
+      summary: Submit and analyze a signal via AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeSignalBody"
+      responses:
+        "200":
+          description: Analyzed signal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Signal"
+
+  /signals/simulate:
+    post:
+      operationId: simulateSignal
+      tags: [signals]
+      summary: Insert a simulated live signal without calling AI
+      responses:
+        "200":
+          description: Simulated signal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Signal"
+
+  /signals/{id}:
+    get:
+      operationId: getSignal
+      tags: [signals]
+      summary: Get a single signal by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Signal detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Signal"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /signals/{id}/status:
+    patch:
+      operationId: updateSignalStatus
+      tags: [signals]
+      summary: Update signal status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusBody"
+      responses:
+        "200":
+          description: Updated signal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Signal"
+
+  /alerts:
+    get:
+      operationId: getAlerts
+      tags: [alerts]
+      summary: Get all alerts
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /alerts/check:
+    post:
+      operationId: checkAlerts
+      tags: [alerts]
+      summary: Run cluster detection and create alerts
+      responses:
+        "200":
+          description: Newly created alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}/status:
+    patch:
+      operationId: updateAlertStatus
+      tags: [alerts]
+      summary: Update alert status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAlertStatusBody"
+      responses:
+        "200":
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  /analytics/timeseries:
+    get:
+      operationId: getTimeseries
+      tags: [analytics]
+      summary: Signals grouped by hour for last 24h
+      responses:
+        "200":
+          description: Timeseries data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeseriesPoint"
+
+  /analytics/drugs:
+    get:
+      operationId: getDrugsAnalytics
+      tags: [analytics]
+      summary: Top flagged drugs
+      responses:
+        "200":
+          description: Drug analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DrugAnalytic"
+
+  /analytics/hospitals:
+    get:
+      operationId: getHospitalsAnalytics
+      tags: [analytics]
+      summary: Top flagged hospitals
+      responses:
+        "200":
+          description: Hospital analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HospitalAnalytic"
+
+  /analytics/districts:
+    get:
+      operationId: getDistrictsAnalytics
+      tags: [analytics]
+      summary: District-level signal breakdown
+      responses:
+        "200":
+          description: District analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DistrictAnalytic"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +312,255 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Signal:
+      type: object
+      properties:
+        id:
+          type: integer
+        created_at:
+          type: string
+        incident_date:
+          type: string
+          nullable: true
+        source_type:
+          type: string
+          nullable: true
+        location_district:
+          type: string
+          nullable: true
+        location_type:
+          type: string
+          nullable: true
+        raw_text:
+          type: string
+          nullable: true
+        reporter_type:
+          type: string
+          nullable: true
+        drug_name:
+          type: string
+          nullable: true
+        hospital_name:
+          type: string
+          nullable: true
+        risk_level:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        extracted_entities:
+          type: string
+          nullable: true
+        recommended_action:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        nlp_summary:
+          type: string
+          nullable: true
+      required:
+        - id
+        - created_at
+
+    SignalsListResponse:
+      type: object
+      properties:
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Signal"
+        total:
+          type: integer
+      required:
+        - signals
+        - total
+
+    SignalSummary:
+      type: object
+      properties:
+        total_today:
+          type: integer
+        critical_count:
+          type: integer
+        districts_affected:
+          type: integer
+        signals_last_hour:
+          type: integer
+        by_risk:
+          type: object
+          properties:
+            critical:
+              type: integer
+            high:
+              type: integer
+            medium:
+              type: integer
+            low:
+              type: integer
+          required: [critical, high, medium, low]
+        by_category:
+          type: object
+          properties:
+            adr:
+              type: integer
+            hospital_issue:
+              type: integer
+            outbreak_signal:
+              type: integer
+            treatment_complication:
+              type: integer
+          required: [adr, hospital_issue, outbreak_signal, treatment_complication]
+        by_location_type:
+          type: object
+          properties:
+            urban:
+              type: integer
+            rural:
+              type: integer
+          required: [urban, rural]
+      required:
+        - total_today
+        - critical_count
+        - districts_affected
+        - signals_last_hour
+        - by_risk
+        - by_category
+        - by_location_type
+
+    AnalyzeSignalBody:
+      type: object
+      properties:
+        raw_text:
+          type: string
+        source_type:
+          type: string
+        location_district:
+          type: string
+        location_type:
+          type: string
+        reporter_type:
+          type: string
+        drug_name:
+          type: string
+          nullable: true
+        hospital_name:
+          type: string
+          nullable: true
+        incident_date:
+          type: string
+          nullable: true
+      required:
+        - raw_text
+
+    UpdateStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [new, reviewed, escalated]
+      required:
+        - status
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: integer
+        created_at:
+          type: string
+        district:
+          type: string
+          nullable: true
+        signal_count:
+          type: integer
+          nullable: true
+        time_window_hours:
+          type: integer
+          nullable: true
+        risk_level:
+          type: string
+          nullable: true
+        cluster_summary:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+      required:
+        - id
+        - created_at
+
+    UpdateAlertStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, acknowledged, escalated]
+      required:
+        - status
+
+    TimeseriesPoint:
+      type: object
+      properties:
+        hour:
+          type: string
+        total:
+          type: integer
+        critical:
+          type: integer
+        high:
+          type: integer
+        medium:
+          type: integer
+        low:
+          type: integer
+      required: [hour, total, critical, high, medium, low]
+
+    DrugAnalytic:
+      type: object
+      properties:
+        drug_name:
+          type: string
+        count:
+          type: integer
+      required: [drug_name, count]
+
+    HospitalAnalytic:
+      type: object
+      properties:
+        hospital_name:
+          type: string
+        count:
+          type: integer
+      required: [hospital_name, count]
+
+    DistrictAnalytic:
+      type: object
+      properties:
+        district:
+          type: string
+        total:
+          type: integer
+        critical:
+          type: integer
+        high:
+          type: integer
+        medium:
+          type: integer
+        low:
+          type: integer
+        location_type:
+          type: string
+          nullable: true
+      required: [district, total, critical, high, medium, low]
