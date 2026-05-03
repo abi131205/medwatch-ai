@@ -170,11 +170,11 @@ export default function SubmitReport() {
         </Card>
       )}
 
-      <Card className="glass-card">
-        <CardContent className="pt-6">
+      <Card className="glass-card" style={{ overflow: "visible" }}>
+        <CardContent className="pt-6" style={{ overflow: "visible" }}>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" style={{ overflow: "visible" }}>
+              <div className="grid md:grid-cols-2 gap-6" style={{ overflow: "visible" }}>
                 <FormField
                   control={form.control}
                   name="reporter_type"
@@ -230,18 +230,51 @@ export default function SubmitReport() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>District</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Select district" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {KARNATAKA_DISTRICTS.map(d => (
-                            <SelectItem key={d} value={d}>{d}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <div style={{ position: "relative", zIndex: 9999 }}>
+                          <select
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "10px 14px",
+                              backgroundColor: "#1A1D27",
+                              color: field.value ? "#F1F5F9" : "#94A3B8",
+                              border: "1px solid #2A2D3E",
+                              borderRadius: "8px",
+                              fontSize: "14px",
+                              cursor: "pointer",
+                              position: "relative",
+                              zIndex: 9999,
+                              appearance: "auto",
+                            }}
+                          >
+                            <option value="" disabled>Select district</option>
+                            <optgroup label="Urban Districts">
+                              <option value="Bengaluru">Bengaluru</option>
+                              <option value="Mysuru">Mysuru</option>
+                              <option value="Hubli">Hubli</option>
+                              <option value="Mangaluru">Mangaluru</option>
+                              <option value="Belagavi">Belagavi</option>
+                              <option value="Kalaburagi">Kalaburagi</option>
+                              <option value="Dharwad">Dharwad</option>
+                              <option value="Tumkur">Tumkur</option>
+                            </optgroup>
+                            <optgroup label="Rural Districts">
+                              <option value="Raichur">Raichur</option>
+                              <option value="Bellary">Bellary</option>
+                              <option value="Davangere">Davangere</option>
+                              <option value="Kolar">Kolar</option>
+                              <option value="Bidar">Bidar</option>
+                              <option value="Vijayapura">Vijayapura</option>
+                              <option value="Hassan">Hassan</option>
+                              <option value="Shimoga">Shimoga</option>
+                              <option value="Udupi">Udupi</option>
+                              <option value="Chikkamagaluru">Chikkamagaluru</option>
+                            </optgroup>
+                          </select>
+                        </div>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -350,7 +383,7 @@ export default function SubmitReport() {
       </Card>
 
       {/* Bulk Simulation Panel */}
-      <Card className="glass-card border-amber-500/20">
+      <Card className="glass-card border-amber-500/20" style={{ overflow: "visible" }}>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-amber-400">
             <Smartphone className="w-5 h-5" />
@@ -375,18 +408,50 @@ export default function SubmitReport() {
               </Select>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" style={{ position: "relative", zIndex: 9999 }}>
               <label className="text-sm font-medium">Target District</label>
-              <Select value={bulkDistrict} onValueChange={setBulkDistrict}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {KARNATAKA_DISTRICTS.map(d => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div style={{ position: "relative", zIndex: 9999 }}>
+                <select
+                  value={bulkDistrict}
+                  onChange={(e) => setBulkDistrict(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    backgroundColor: "#1A1D27",
+                    color: "#F1F5F9",
+                    border: "1px solid #2A2D3E",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    position: "relative",
+                    zIndex: 9999,
+                    appearance: "auto",
+                  }}
+                >
+                  <optgroup label="Urban Districts">
+                    <option value="Bengaluru">Bengaluru</option>
+                    <option value="Mysuru">Mysuru</option>
+                    <option value="Hubli">Hubli</option>
+                    <option value="Mangaluru">Mangaluru</option>
+                    <option value="Belagavi">Belagavi</option>
+                    <option value="Kalaburagi">Kalaburagi</option>
+                    <option value="Dharwad">Dharwad</option>
+                    <option value="Tumkur">Tumkur</option>
+                  </optgroup>
+                  <optgroup label="Rural Districts">
+                    <option value="Raichur">Raichur</option>
+                    <option value="Bellary">Bellary</option>
+                    <option value="Davangere">Davangere</option>
+                    <option value="Kolar">Kolar</option>
+                    <option value="Bidar">Bidar</option>
+                    <option value="Vijayapura">Vijayapura</option>
+                    <option value="Hassan">Hassan</option>
+                    <option value="Shimoga">Shimoga</option>
+                    <option value="Udupi">Udupi</option>
+                    <option value="Chikkamagaluru">Chikkamagaluru</option>
+                  </optgroup>
+                </select>
+              </div>
             </div>
           </div>
 
