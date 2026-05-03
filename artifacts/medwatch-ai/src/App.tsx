@@ -13,6 +13,10 @@ import SignalDetail from "@/pages/signals/detail";
 import SubmitReport from "@/pages/submit";
 import Alerts from "@/pages/alerts";
 import Analytics from "@/pages/analytics";
+import Projects from "@/pages/projects";
+import Admin from "@/pages/admin";
+import Timeline from "@/pages/timeline";
+import Architecture from "@/pages/architecture";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -21,30 +25,18 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/dashboard">
-        <Layout><Dashboard /></Layout>
-      </Route>
-      <Route path="/map">
-        <Layout><MapView /></Layout>
-      </Route>
-      <Route path="/signals">
-        <Layout><Signals /></Layout>
-      </Route>
-      <Route path="/signals/:id">
-        <Layout><SignalDetail /></Layout>
-      </Route>
-      <Route path="/submit">
-        <Layout><SubmitReport /></Layout>
-      </Route>
-      <Route path="/alerts">
-        <Layout><Alerts /></Layout>
-      </Route>
-      <Route path="/analytics">
-        <Layout><Analytics /></Layout>
-      </Route>
-      <Route>
-        <Layout><NotFound /></Layout>
-      </Route>
+      <Route path="/dashboard"><Layout><Dashboard /></Layout></Route>
+      <Route path="/map"><Layout><MapView /></Layout></Route>
+      <Route path="/signals"><Layout><Signals /></Layout></Route>
+      <Route path="/signals/:id"><Layout><SignalDetail /></Layout></Route>
+      <Route path="/submit"><Layout><SubmitReport /></Layout></Route>
+      <Route path="/alerts"><Layout><Alerts /></Layout></Route>
+      <Route path="/analytics"><Layout><Analytics /></Layout></Route>
+      <Route path="/projects"><Layout><Projects /></Layout></Route>
+      <Route path="/admin"><Layout><Admin /></Layout></Route>
+      <Route path="/timeline"><Layout><Timeline /></Layout></Route>
+      <Route path="/architecture"><Architecture /></Route>
+      <Route><Layout><NotFound /></Layout></Route>
     </Switch>
   );
 }

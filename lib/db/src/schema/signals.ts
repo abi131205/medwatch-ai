@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, date } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, date, real } from "drizzle-orm/pg-core";
 
 export const signalsTable = pgTable("signals", {
   id: serial("id").primaryKey(),
@@ -17,6 +17,15 @@ export const signalsTable = pgTable("signals", {
   recommended_action: text("recommended_action"),
   status: text("status").default("new"),
   nlp_summary: text("nlp_summary"),
+  sentiment: text("sentiment"),
+  sentiment_score: real("sentiment_score").default(0),
+  confidence_score: real("confidence_score").default(0.75),
+  pii_detected: integer("pii_detected").default(0),
+  pii_types: text("pii_types").default("[]"),
+  pii_description: text("pii_description"),
+  safety_flags: text("safety_flags").default("[]"),
+  reasoning: text("reasoning"),
+  project_id: integer("project_id"),
 });
 
 export type Signal = typeof signalsTable.$inferSelect;

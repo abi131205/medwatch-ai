@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useLocation } from "wouter";
-import { AlertCircle, Activity, MapPin, Search, Pill, MapPinIcon, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Activity, MapPin, Search, Pill, MapPinIcon, CheckCircle2, TrendingUp, BarChart2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   getGetSignalsQueryKey, getGetSignalsSummaryQueryKey, useGetTimeseries,
   getGetTimeseriesQueryKey, getGetAlertsQueryKey
 } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import { format, formatDistanceToNow } from "date-fns";
@@ -25,21 +26,13 @@ function getRiskBorderColor(risk: string) {
   }
 }
 
-function getRiskTextColor(risk: string) {
-  switch (risk) {
-    case "critical": return "text-destructive";
-    case "high": return "text-[#F97316]";
-    case "medium": return "text-[#EAB308]";
-    default: return "text-[#22C55E]";
-  }
-}
-
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const simulateSignal = useSimulateSignal();
   const [newSignalIds, setNewSignalIds] = React.useState<Set<number>>(new Set());
+  const [rightTab, setRightTab] = React.useState<"trending" | "sentiment">("trending");
 
   const { data: summary, isLoading: loadingSummary } = useGetSignalsSummary();
   const { data: signalsData, isLoading: loadingSignals } = useGetSignals({ limit: 20 });
@@ -47,7 +40,16 @@ export default function Dashboard() {
   const { data: timeseries, isLoading: loadingTimeseries } = useGetTimeseries();
   const { data: alerts } = useGetAlerts({ refetchInterval: 30000 } as any);
 
-  // 15-second auto-simulate
+  const { data: sentimentData } = useQuery({
+    queryKey: ["analytics", "sentiment"],
+    queryFn: async () => {
+      const res = await fetch("/api/analytics/sentiment");
+      if (!res.ok) throw new Error("Failed to fetch sentiment");
+      return res.json();
+    },
+    refetchInterval: 60000,
+  });
+
   React.useEffect(() => {
     const interval = setInterval(() => {
       simulateSignal.mutate(undefined, {
@@ -55,18 +57,10 @@ export default function Dashboard() {
           if (newSignal?.id) {
             setNewSignalIds(prev => new Set([...prev, newSignal.id]));
             setTimeout(() => {
-              setNewSignalIds(prev => {
-                const next = new Set(prev);
-                next.delete(newSignal.id);
-                return next;
-              });
+              setNewSignalIds(prev => { const next = new Set(prev); next.delete(newSignal.id); return next; });
             }, 3000);
-
             if (newSignal.risk_level === "critical") {
-              toast({
-                title: "🔴 New Critical Signal",
-                description: `Critical signal detected in ${newSignal.location_district || "Unknown district"}`,
-              });
+              toast({ title: "🔴 New Critical Signal", description: `Critical signal detected in ${newSignal.location_district || "Unknown district"}` });
             }
           }
           queryClient.invalidateQueries({ queryKey: getGetSignalsQueryKey() });
@@ -79,15 +73,12 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [simulateSignal, queryClient, toast]);
 
-  // Compute trending signals from last 24h
   const trendingSignals = React.useMemo(() => {
     const allSignals = allSignalsData?.signals || [];
     const now = new Date();
     const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const recent = allSignals.filter(s => new Date(s.created_at) >= cutoff);
-
     const groups = new Map<string, { key: string; type: "drug" | "category"; label: string; district: string; signals: typeof recent }>();
-
     for (const sig of recent) {
       if (sig.drug_name && sig.location_district) {
         const key = `drug:${sig.drug_name}|${sig.location_district}`;
@@ -95,7 +86,6 @@ export default function Dashboard() {
         groups.get(key)!.signals.push(sig);
       }
     }
-
     for (const sig of recent) {
       if (sig.category && sig.location_district) {
         const key = `cat:${sig.category}|${sig.location_district}`;
@@ -103,7 +93,6 @@ export default function Dashboard() {
         groups.get(key)!.signals.push(sig);
       }
     }
-
     return Array.from(groups.values())
       .filter(g => g.signals.length >= 2)
       .map(g => {
@@ -113,10 +102,7 @@ export default function Dashboard() {
           return idx < bestIdx ? (s.risk_level || "low") : best;
         }, "low");
         const latestSignal = g.signals.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-        const sourceCounts = g.signals.reduce<Record<string, number>>((acc, s) => {
-          if (s.source_type) acc[s.source_type] = (acc[s.source_type] || 0) + 1;
-          return acc;
-        }, {});
+        const sourceCounts = g.signals.reduce<Record<string, number>>((acc, s) => { if (s.source_type) acc[s.source_type] = (acc[s.source_type] || 0) + 1; return acc; }, {});
         const topSource = Object.entries(sourceCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "unknown";
         return { ...g, count: g.signals.length, maxRisk, latestAt: latestSignal?.created_at, topSource };
       })
@@ -129,58 +115,34 @@ export default function Dashboard() {
     return (Array.isArray(alerts) ? alerts : []).filter((a: any) => a.status === "active");
   }, [alerts]);
 
-  const categoryColors: Record<string, string> = {
-    adr: "#6366F1",
-    hospital_issue: "#22D3EE",
-    outbreak_signal: "#EF4444",
-    treatment_complication: "#F97316"
-  };
+  const categoryColors: Record<string, string> = { adr: "#6366F1", hospital_issue: "#22D3EE", outbreak_signal: "#EF4444", treatment_complication: "#F97316" };
+  const pieData = summary?.by_category ? Object.entries(summary.by_category).map(([name, value]) => ({ name: name.replace("_", " ").toUpperCase(), value })) : [];
 
-  const pieData = summary?.by_category ? Object.entries(summary.by_category).map(([name, value]) => ({
-    name: name.replace("_", " ").toUpperCase(),
-    value
-  })) : [];
+  const overallSentiment = sentimentData?.overall;
+  const bySrc = sentimentData?.by_source || [];
 
   return (
     <div className="space-y-6">
-      {/* Alert Banner */}
+      <div>
+        <h1 className="text-xl font-bold text-foreground">Command Center</h1>
+        <p className="text-sm text-muted-foreground">Real-Time Social Listening Platform for Patient Safety</p>
+      </div>
+
       {activeAlerts.length > 0 ? (
-        <div
-          className="rounded-lg p-4 flex items-center gap-3 animate-in slide-in-from-top-2"
-          style={{
-            background: "linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))",
-            border: "1px solid rgba(239,68,68,0.3)"
-          }}
-        >
+        <div className="rounded-lg p-4 flex items-center gap-3 animate-in slide-in-from-top-2" style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))", border: "1px solid rgba(239,68,68,0.3)" }}>
           <div className="w-3 h-3 rounded-full bg-destructive animate-pulse shrink-0" />
           <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
-          <span className="font-semibold text-destructive flex-1">
-            ⚠ ACTIVE ALERT — {activeAlerts.length} district{activeAlerts.length > 1 ? "s" : ""} showing critical signal clusters
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
-            onClick={() => navigate("/alerts")}
-          >
-            View Alerts →
-          </Button>
+          <span className="font-semibold text-destructive flex-1">⚠ ACTIVE ALERT — {activeAlerts.length} district{activeAlerts.length > 1 ? "s" : ""} showing critical signal clusters</span>
+          <Button size="sm" variant="outline" className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0" onClick={() => navigate("/alerts")}>View Alerts →</Button>
         </div>
       ) : (
-        <div
-          className="rounded-lg p-4 flex items-center gap-3"
-          style={{
-            background: "linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.03))",
-            border: "1px solid rgba(34,197,94,0.25)"
-          }}
-        >
+        <div className="rounded-lg p-4 flex items-center gap-3" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.03))", border: "1px solid rgba(34,197,94,0.25)" }}>
           <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
           <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
           <span className="text-green-400 font-medium">✅ System Monitoring Active — No critical clusters detected</span>
         </div>
       )}
 
-      {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total Signals Today", value: summary?.total_today, icon: Activity, color: "text-primary" },
@@ -194,11 +156,7 @@ export default function Dashboard() {
               <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
             </CardHeader>
             <CardContent>
-              {loadingSummary ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-3xl font-bold">{kpi.value ?? 0}</div>
-              )}
+              {loadingSummary ? <Skeleton className="h-8 w-20" /> : <div className="text-3xl font-bold">{kpi.value ?? 0}</div>}
             </CardContent>
           </Card>
         ))}
@@ -216,31 +174,21 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-0">
             {loadingSignals ? (
-              <div className="p-4 space-y-4">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-              </div>
+              <div className="p-4 space-y-4">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
             ) : (
               <div className="divide-y divide-card-border">
                 {signalsData?.signals.map((sig) => {
                   const isNew = newSignalIds.has(sig.id);
                   return (
                     <Link key={sig.id} href={`/signals/${sig.id}`}>
-                      <div
-                        className={`p-4 hover:bg-card-border/30 transition-all duration-500 cursor-pointer flex flex-col gap-2 ${
-                          isNew ? "bg-yellow-500/10 border-l-2 border-l-yellow-400" : ""
-                        }`}
-                      >
+                      <div className={`p-4 hover:bg-card-border/30 transition-all duration-500 cursor-pointer flex flex-col gap-2 ${isNew ? "bg-yellow-500/10 border-l-2 border-l-yellow-400" : ""}`}>
                         <div className="flex justify-between items-start">
                           <div className="flex items-center gap-2">
                             {isNew && <span className="text-[10px] text-yellow-400 font-bold animate-pulse">NEW</span>}
                             <span className="text-xs font-mono text-muted-foreground">#{sig.id}</span>
                             <span className="text-xs text-muted-foreground">{format(new Date(sig.created_at), "HH:mm:ss")}</span>
                           </div>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold
-                            ${sig.risk_level === "critical" ? "bg-destructive/20 text-destructive" :
-                              sig.risk_level === "high" ? "bg-[#F97316]/20 text-[#F97316]" :
-                              sig.risk_level === "medium" ? "bg-[#EAB308]/20 text-[#EAB308]" :
-                              "bg-[#22C55E]/20 text-[#22C55E]"}`}>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${sig.risk_level === "critical" ? "bg-destructive/20 text-destructive" : sig.risk_level === "high" ? "bg-[#F97316]/20 text-[#F97316]" : sig.risk_level === "medium" ? "bg-[#EAB308]/20 text-[#EAB308]" : "bg-[#22C55E]/20 text-[#22C55E]"}`}>
                             {sig.risk_level}
                           </span>
                         </div>
@@ -259,57 +207,115 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Trending Signals Panel */}
+        {/* Right Panel: Trending + Sentiment Tabs */}
         <Card className="glass-card lg:col-span-2 flex flex-col h-[520px]">
-          <CardHeader className="pb-3 border-b border-card-border">
-            <CardTitle>Trending Signals</CardTitle>
+          <CardHeader className="pb-0 border-b border-card-border">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setRightTab("trending")}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-t transition-colors ${rightTab === "trending" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <TrendingUp className="w-4 h-4" /> Trending
+              </button>
+              <button
+                onClick={() => setRightTab("sentiment")}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-t transition-colors ${rightTab === "sentiment" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <BarChart2 className="w-4 h-4" /> Sentiment
+              </button>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
-            {loadingSignals ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
-              </div>
-            ) : trendingSignals.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center gap-2 text-muted-foreground">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <p className="text-sm">No emerging patterns in the last 24 hours — monitoring active</p>
-              </div>
-            ) : (
-              trendingSignals.map((trend) => (
-                <div
-                  key={trend.key}
-                  className={`border-l-4 ${getRiskBorderColor(trend.maxRisk)} bg-card-border/20 rounded-r-lg p-3 space-y-1`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {trend.type === "drug" ? (
-                        <Pill className="w-3.5 h-3.5 text-primary shrink-0" />
-                      ) : (
-                        <MapPinIcon className="w-3.5 h-3.5 text-secondary shrink-0" />
-                      )}
-                      <span className="text-sm font-bold truncate">
-                        {trend.count}× {trend.label.replace("_", " ")} in {trend.district}
-                      </span>
-                    </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold shrink-0
-                      ${trend.maxRisk === "critical" ? "bg-destructive/20 text-destructive" :
-                        trend.maxRisk === "high" ? "bg-[#F97316]/20 text-[#F97316]" :
-                        trend.maxRisk === "medium" ? "bg-[#EAB308]/20 text-[#EAB308]" :
-                        "bg-[#22C55E]/20 text-[#22C55E]"}`}>
-                      {trend.maxRisk}
-                    </span>
+            {rightTab === "trending" && (
+              <>
+                {loadingSignals ? (
+                  <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
+                ) : trendingSignals.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center gap-2 text-muted-foreground">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <p className="text-sm">No emerging patterns in the last 24 hours — monitoring active</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Last {trend.latestAt ? formatDistanceToNow(new Date(trend.latestAt), { addSuffix: true }) : "recently"} — via {trend.topSource.replace("_", " ")}
-                  </p>
-                  {trend.count >= 3 && (
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                      <span className="text-[11px] text-destructive font-semibold">⚠ Emerging Pattern</span>
+                ) : (
+                  trendingSignals.map((trend) => (
+                    <div key={trend.key} className={`border-l-4 ${getRiskBorderColor(trend.maxRisk)} bg-card-border/20 rounded-r-lg p-3 space-y-1`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {trend.type === "drug" ? <Pill className="w-3.5 h-3.5 text-primary shrink-0" /> : <MapPinIcon className="w-3.5 h-3.5 text-secondary shrink-0" />}
+                          <span className="text-sm font-bold truncate">{trend.count}× {trend.label.replace("_", " ")} in {trend.district}</span>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold shrink-0 ${trend.maxRisk === "critical" ? "bg-destructive/20 text-destructive" : trend.maxRisk === "high" ? "bg-[#F97316]/20 text-[#F97316]" : trend.maxRisk === "medium" ? "bg-[#EAB308]/20 text-[#EAB308]" : "bg-[#22C55E]/20 text-[#22C55E]"}`}>
+                          {trend.maxRisk}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Last {trend.latestAt ? formatDistanceToNow(new Date(trend.latestAt), { addSuffix: true }) : "recently"} — via {trend.topSource.replace("_", " ")}</p>
+                      {trend.count >= 3 && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                          <span className="text-[11px] text-destructive font-semibold">⚠ Emerging Pattern</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))
+                  ))
+                )}
+              </>
+            )}
+
+            {rightTab === "sentiment" && (
+              <div className="space-y-4">
+                {!sentimentData ? (
+                  <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+                ) : (
+                  <>
+                    <div className="text-xs text-muted-foreground">Overall sentiment — last 7 days ({overallSentiment?.total || 0} signals)</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+                        <div className="text-2xl font-bold text-destructive">{overallSentiment?.negative || 0}</div>
+                        <div className="text-[10px] text-destructive/80 font-medium">Negative</div>
+                        <div className="text-[10px] text-muted-foreground">{overallSentiment?.total ? Math.round((overallSentiment.negative / overallSentiment.total) * 100) : 0}%</div>
+                      </div>
+                      <div className="text-center p-2 rounded-lg bg-card-border border border-card-border">
+                        <div className="text-2xl font-bold text-muted-foreground">{overallSentiment?.neutral || 0}</div>
+                        <div className="text-[10px] text-muted-foreground font-medium">Neutral</div>
+                        <div className="text-[10px] text-muted-foreground">{overallSentiment?.total ? Math.round((overallSentiment.neutral / overallSentiment.total) * 100) : 0}%</div>
+                      </div>
+                      <div className="text-center p-2 rounded-lg bg-green-500/10 border border-green-500/20">
+                        <div className="text-2xl font-bold text-green-500">{overallSentiment?.positive || 0}</div>
+                        <div className="text-[10px] text-green-400 font-medium">Positive</div>
+                        <div className="text-[10px] text-muted-foreground">{overallSentiment?.total ? Math.round((overallSentiment.positive / overallSentiment.total) * 100) : 0}%</div>
+                      </div>
+                    </div>
+
+                    {overallSentiment?.total > 0 && (
+                      <div className="w-full flex rounded-full overflow-hidden h-3">
+                        <div className="bg-destructive transition-all" style={{ width: `${Math.round((overallSentiment.negative / overallSentiment.total) * 100)}%` }} />
+                        <div className="bg-gray-600 transition-all" style={{ width: `${Math.round((overallSentiment.neutral / overallSentiment.total) * 100)}%` }} />
+                        <div className="bg-green-500 transition-all" style={{ width: `${Math.round((overallSentiment.positive / overallSentiment.total) * 100)}%` }} />
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">Per-Source Sentiment</div>
+                      <div className="space-y-2">
+                        {bySrc.map((src: any) => (
+                          <div key={src.source} className="flex items-center justify-between text-xs py-1.5 border-b border-card-border/50 last:border-0">
+                            <span className="font-medium capitalize">{src.source.replace("_", " ")}</span>
+                            <span className="text-muted-foreground">{src.count} signals</span>
+                            <span className={`font-semibold ${src.avg_score < -0.3 ? "text-destructive" : src.avg_score > 0.1 ? "text-green-500" : "text-muted-foreground"}`}>
+                              {src.avg_score.toFixed(2)} ({src.sentiment})
+                            </span>
+                            <span className="text-muted-foreground text-[10px]">{src.trend}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground bg-card-border/30 rounded p-2 flex items-center justify-between">
+                      <span>Avg Sentiment Score</span>
+                      <span className={`font-bold ${(overallSentiment?.avg_score || 0) < -0.3 ? "text-destructive" : "text-green-500"}`}>{overallSentiment?.avg_score?.toFixed(2) || "—"}</span>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -317,16 +323,12 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="glass-card">
-          <CardHeader>
-            <CardTitle>Signal Volume (24h)</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Signal Volume (24h)</CardTitle></CardHeader>
           <CardContent className="h-[300px]">
-            {loadingTimeseries ? (
-              <Skeleton className="h-full w-full" />
-            ) : (
+            {loadingTimeseries ? <Skeleton className="h-full w-full" /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={timeseries}>
-                  <XAxis dataKey="hour" stroke="#94A3B8" fontSize={12} tickFormatter={(val) => val.split("T")[1].substring(0, 5)} />
+                  <XAxis dataKey="hour" stroke="#94A3B8" fontSize={12} tickFormatter={(val) => val.split("T")[1]?.substring(0, 5) || val.substring(11, 16)} />
                   <YAxis stroke="#94A3B8" fontSize={12} />
                   <RechartsTooltip contentStyle={{ backgroundColor: "#1A1D27", borderColor: "#2A2D3E" }} />
                   <Line type="monotone" dataKey="critical" stroke="#EF4444" strokeWidth={2} dot={false} />
@@ -340,27 +342,13 @@ export default function Dashboard() {
         </Card>
 
         <Card className="glass-card">
-          <CardHeader>
-            <CardTitle>Distribution by Category</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Distribution by Category</CardTitle></CardHeader>
           <CardContent className="h-[300px]">
-            {loadingSummary ? (
-              <Skeleton className="h-full w-full" />
-            ) : (
+            {loadingSummary ? <Skeleton className="h-full w-full" /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={Object.values(categoryColors)[index % 4]} />
-                    ))}
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                    {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={Object.values(categoryColors)[index % 4]} />)}
                   </Pie>
                   <RechartsTooltip contentStyle={{ backgroundColor: "#1A1D27", borderColor: "#2A2D3E" }} />
                 </PieChart>

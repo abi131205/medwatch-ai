@@ -1,0 +1,392 @@
+You are rebuilding MedWatch AI to fully satisfy Theme 6: 
+"Real-Time Social Listening for Patient Experience & Safety Signals"
+from the AI for Bharat PAN IIT Hackathon.
+
+DO NOT rebuild from scratch. The existing app at 
+med-watch-agent--creature-13.replit.app has a working foundation.
+ADD and MODIFY only what is needed below.
+
+The app must satisfy these two parts fully:
+
+═══════════════════════════════════════════
+PART 1: SOCIAL LISTENING ENGINE PLATFORM
+═══════════════════════════════════════════
+
+ADDITION 1: Projects Page (/projects)
+
+Add "Projects" to the sidebar navigation (FolderOpen icon).
+
+This is the core of the platform. Users create "Social Listening 
+Projects" — each project monitors specific keywords across 
+specific sources.
+
+Create SQLite table:
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT,
+  keywords TEXT NOT NULL,       -- JSON array e.g. ["Metformin","adverse"]
+  sources TEXT NOT NULL,        -- JSON array e.g. ["twitter","reddit"]
+  latency TEXT NOT NULL,        -- JSON object e.g. {"twitter":"realtime","reddit":"daily"}
+  status TEXT DEFAULT 'active', -- active | paused
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  signal_count INTEGER DEFAULT 0
+);
+
+Seed 3 default projects on startup:
+1. Name: "Adverse Drug Reactions India"
+   Keywords: ["Metformin","Insulin","Azithromycin","Paracetamol","adverse reaction","side effects"]
+   Sources: twitter, reddit, quora
+   Latency: {twitter: "realtime", reddit: "daily", quora: "weekly"}
+
+2. Name: "Hospital Quality Bengaluru"  
+   Keywords: ["Victoria Hospital","Manipal Hospital","Apollo","hospital complaint","negligence"]
+   Sources: twitter, reddit
+   Latency: {twitter: "realtime", reddit: "daily"}
+
+3. Name: "Rural Health Signals Raichur"
+   Keywords: ["Raichur hospital","PHC","ASHA worker","medicine reaction","fever outbreak"]
+   Sources: reddit, quora
+   Latency: {reddit: "daily", quora: "weekly"}
+
+/projects page layout:
+- Header: "Social Listening Projects" + "New Project" button (indigo)
+- Stats row: 3 KPI cards — Active Projects, Total Keywords Monitored,
+  Sources Connected, Signals Collected Today
+- Grid of project cards (2 columns):
+  Each card shows:
+  * Project name (bold)
+  * Description (gray, small)
+  * Keyword chips (indigo pills, show first 4 then "+N more")
+  * Source badges row: Twitter bird (blue), Reddit alien (orange),
+    Quora Q (red), WhatsApp (green) — colored icons/labels
+  * Latency tags per source: "Real-time" (green dot), 
+    "Daily" (yellow dot), "Weekly" (gray dot)
+  * Signal count: "247 signals collected"
+  * Status toggle: Active (green) / Paused (gray)
+  * Two buttons: "View Signals →" | "Edit"
+  * Last crawled timestamp
+
+"New Project" button opens a modal/panel with this form:
+  - Project Name (text input, required)
+  - Description (textarea)
+  - Keywords (tag input):
+    * Text field where user types keyword + presses Enter
+    * Each keyword becomes a removable chip
+    * Placeholder: "Type a keyword and press Enter..."
+  - Sources (multi-select with icons):
+    * Checkboxes with icons for: X/Twitter, Reddit, Quora, 
+      WhatsApp (simulated), News Forums
+  - Per-source latency (shown dynamically for each selected source):
+    * Dropdown: Real-time | Daily | Weekly
+  - "Create Project" button → POST /api/projects → saves to DB
+    → shows success toast → card appears in grid
+
+API routes needed:
+GET  /api/projects         → list all projects
+POST /api/projects         → create new project
+PATCH /api/projects/:id    → update (status toggle, edit)
+DELETE /api/projects/:id   → delete project
+GET /api/projects/:id/signals → signals linked to this project
+
+---
+
+ADDITION 2: Source Engine Configuration (/admin)
+
+Add "Engine Config" to sidebar (Settings icon, bottom of sidebar).
+
+This page simulates the pluggable engine architecture.
+
+Layout:
+- Header: "Data Source Engines"
+- Subtitle: "Configure and manage crawling engines for each data source"
+
+Show a table/grid of available engines:
+
+| Engine Name | Source Type | Status | Latency | Last Run | Signals Today | Actions |
+|---|---|---|---|---|---|---|
+| Twitter/X Engine | Social Media | Active | Real-time | 2 mins ago | 34 | Configure / Pause |
+| Reddit Engine | Forum | Active | Daily | 6 hrs ago | 89 | Configure / Pause |
+| Quora Engine | Q&A Platform | Active | Daily | 8 hrs ago | 23 | Configure / Pause |
+| WhatsApp Simulator | Messaging | Active | Real-time | 1 min ago | 12 | Configure / Pause |
+| News Forum Engine | News | Paused | Weekly | 2 days ago | 0 | Configure / Activate |
+
+Each engine has a "Configure" button that opens a side panel showing:
+- Engine Name (editable)
+- Source URL/API endpoint (editable text field)
+- Auth Token/API Key field (masked, shows *****)
+- Rate limit (requests per minute slider: 1-60)
+- Retry config (max retries: 1-5)
+- Keywords override (optional)
+- "Test Connection" button → shows green "Connected" or red "Failed"
+- "Save Configuration" button
+
+Add a "+ Add New Engine" button at top right:
+- Opens modal with Engine Name, Source Type dropdown, 
+  Base URL, Auth method (API Key / OAuth / None)
+- Shows message: "Engine registered. Configure keywords in Projects."
+
+This page demonstrates the EXTENSIBILITY of the platform — 
+new data sources can be added via UI without code changes.
+
+═══════════════════════════════════════════
+PART 2: ANALYSIS ENHANCEMENTS
+═══════════════════════════════════════════
+
+ADDITION 3: Enhanced Claude NLP Response
+
+Update the Claude API system prompt in POST /api/signals/analyze
+to return this expanded JSON (add new fields to existing response):
+
+{
+  "risk_level": "critical|high|medium|low",
+  "category": "adr|hospital_issue|outbreak_signal|treatment_complication",
+  "sentiment": "negative|neutral|positive",
+  "sentiment_score": -0.95,   (float from -1.0 to 1.0)
+  "confidence_score": 0.87,   (float from 0.0 to 1.0)
+  "extracted_entities": {
+    "drugs": [],
+    "symptoms": [],
+    "hospitals": [],
+    "locations": []
+  },
+  "pii_detected": true,
+  "pii_types": ["name", "phone_number", "email", "age", "address"],
+  "pii_description": "Report contains patient name and phone number",
+  "safety_flags": ["adverse_drug_reaction", "hospitalization_required"],
+  "reasoning": "2-sentence explanation of why this risk level was assigned",
+  "nlp_summary": "2-sentence plain English summary",
+  "recommended_action": "1-2 sentence action for health officials"
+}
+
+Add these columns to the signals table (ALTER TABLE or recreate):
+  sentiment TEXT,
+  sentiment_score REAL DEFAULT 0,
+  confidence_score REAL DEFAULT 0.75,
+  pii_detected INTEGER DEFAULT 0,
+  pii_types TEXT DEFAULT '[]',
+  pii_description TEXT,
+  safety_flags TEXT DEFAULT '[]',
+  reasoning TEXT,
+  project_id INTEGER DEFAULT NULL
+
+Update seed data to include plausible values for all new columns.
+
+---
+
+ADDITION 4: Signal Detail Page — Explainability Panel
+
+On /signals/:id page, add a new "AI Explainability" card:
+
+┌─────────────────────────────────────────────┐
+│  🧠 AI Explainability & Traceability        │
+│                                             │
+│  Confidence Score                           │
+│  [████████████░░░] 87%                      │
+│                                             │
+│  Sentiment: 🔴 Negative  (-0.92)           │
+│                                             │
+│  Reasoning:                                 │
+│  "Patient reported life-threatening         │
+│   symptoms within 2 hours of drug           │
+│   administration at a known facility.       │
+│   Second case this week elevates risk."     │
+│                                             │
+│  Safety Flags:                              │
+│  [adverse_drug_reaction] [hospitalization]  │
+│                                             │
+│  Trace ID: SIG-{id}-{timestamp}            │
+│  Engine: WhatsApp Simulator                 │
+│  Project: Adverse Drug Reactions India      │
+│  Processed: {timestamp}                     │
+└─────────────────────────────────────────────┘
+
+If pii_detected = true, show this banner ABOVE the original report:
+┌─────────────────────────────────────────────┐
+│ 🔒 PII/PHI DETECTED                         │
+│ This report contains: {pii_types joined}    │
+│ {pii_description}                           │
+│ Handle in compliance with data privacy laws │
+└─────────────────────────────────────────────┘
+Banner style: red background (rgba(239,68,68,0.1)), 
+red left border (3px), red text
+
+---
+
+ADDITION 5: PII Flagging in Signal Feed
+
+In the /signals feed table:
+- Add a 🔒 icon column. If pii_detected=1 show red lock icon, 
+  else show nothing
+- Add "🔒 PII Flagged" as a filter chip in the filter bar
+- When this filter is active, show only signals with pii_detected=1
+- Add a count badge on the filter: "🔒 PII (12)"
+
+---
+
+ADDITION 6: Sentiment & Source Analytics Panel on Dashboard
+
+On /dashboard, replace or extend the right panel (Trending Signals)
+to show TWO tabs: "Trending" and "Sentiment":
+
+Trending tab (existing):
+- Keep the emerging pattern cards
+
+Sentiment tab (new):
+- Overall sentiment breakdown for last 24h:
+  * Negative: big red number + percentage
+  * Neutral: gray number + percentage  
+  * Positive: green number + percentage
+- Small horizontal bar showing sentiment distribution
+- Per-source sentiment: table showing
+  | Source | Signals | Avg Sentiment | Trend |
+  | Twitter | 34 | -0.72 (Negative) | ↑ worsening |
+  | Reddit | 89 | -0.45 (Negative) | → stable |
+  | WhatsApp | 23 | -0.81 (Negative) | ↓ improving |
+
+API: GET /api/analytics/sentiment
+Returns: { overall: {negative, neutral, positive, avg_score},
+           by_source: [{source, count, avg_score, sentiment}] }
+
+---
+
+ADDITION 7: Signal Timeline View (/timeline)
+
+Add "Timeline" to sidebar (Clock icon).
+
+Full-width page showing signals plotted on a vertical timeline:
+
+- Date/time selector at top: Today | Last 7 Days | Last 30 Days
+- Vertical timeline (center line, events on alternating sides):
+  Each signal event:
+  * Timestamp (bold, left or right)
+  * Colored dot on the center line (risk color)
+  * Signal card: source badge, truncated text, risk badge,
+    category tag, location
+  * Click → navigate to /signals/:id
+
+- Filter by: source, risk level, project
+- Group by day: show date headers between day groups
+- Show "N signals on this day" summary per day group
+
+API: GET /api/signals/timeline?from=&to=&source=&risk=
+Returns signals ordered by created_at DESC with day grouping
+
+---
+
+ADDITION 8: Source-Level Trending on Analytics Page
+
+On /analytics page, add a new section:
+"Source Performance & Trending"
+
+- Line chart (Recharts): Signals per source per day (last 7 days)
+  Lines: Twitter (blue), Reddit (orange), Quora (red), 
+         WhatsApp (green), Field Worker (purple)
+- Table: Source | Total Signals | Negative% | Top Keyword | Avg Confidence
+- "Most Active Source" highlighted card at top of section
+
+═══════════════════════════════════════════
+MANDATORY DELIVERABLE PREP
+═══════════════════════════════════════════
+
+ADDITION 9: Architecture Page (/architecture)
+
+Add a hidden route /architecture (no sidebar link needed).
+
+This page shows the system architecture as an HTML diagram:
+
+Draw this architecture using colored divs and CSS arrows
+(no external libraries needed):
+
+┌─────────────────────────────────────────┐
+│           DATA SOURCES LAYER            │
+│  [Twitter/X] [Reddit] [Quora] [WhatsApp]│
+│  [News Forums] [Hospital Forms] [Field] │
+└──────────────────┬──────────────────────┘
+                   │ Crawlers / APIs
+┌──────────────────▼──────────────────────┐
+│         INGESTION ENGINE LAYER          │
+│  Source Engine 1 | Source Engine 2 | N  │
+│  Rate limiting | Auth | Retry logic     │
+└──────────────────┬──────────────────────┘
+                   │ Raw signals
+┌──────────────────▼──────────────────────┐
+│         NLP PROCESSING LAYER            │
+│  Claude AI API                          │
+│  Entity Extraction | Risk Classification│
+│  Sentiment Analysis | PII Detection     │
+│  Confidence Scoring | Explainability    │
+└──────────────────┬──────────────────────┘
+                   │ Structured signals
+┌──────────────────▼──────────────────────┐
+│           STORAGE LAYER                 │
+│  SQLite DB (Projects, Signals, Alerts)  │
+└──────────────────┬──────────────────────┘
+                   │ REST API
+┌──────────────────▼──────────────────────┐
+│         DASHBOARD & UI LAYER            │
+│  Projects | Feed | Map | Alerts |       │
+│  Analytics | Timeline | Admin           │
+└─────────────────────────────────────────┘
+
+Style each layer box with:
+- Dark surface background
+- Colored left border per layer:
+  Sources: blue, Ingestion: orange, NLP: purple,
+  Storage: yellow, Dashboard: green
+- White text, proper padding
+- Small arrows between layers
+
+Also add a tech stack table below the diagram:
+| Layer | Technology |
+| Frontend | React 18 + Vite + Tailwind CSS |
+| Backend | Node.js + Express.js |
+| Database | SQLite via better-sqlite3 |
+| AI/NLP | Anthropic Claude API (claude-sonnet-4) |
+| Maps | Leaflet.js + React-Leaflet |
+| Charts | Recharts |
+| Deployment | Replit (Production) |
+
+Add a "Copy Architecture URL" button and 
+"Download as PNG" button (use html2canvas if available).
+
+═══════════════════════════════════════════
+FINAL CHECKS
+═══════════════════════════════════════════
+
+1. Update sidebar navigation order:
+   - Command Center (Home)
+   - Projects          ← NEW
+   - Signal Feed
+   - Cluster Map
+   - Timeline          ← NEW
+   - Submit Report
+   - Alerts
+   - Analytics
+   - Engine Config     ← NEW (bottom, with gear icon)
+
+2. On the Dashboard header, add a subtitle:
+   "Real-Time Social Listening Platform for Patient Safety"
+
+3. On the Landing page, update the tagline to:
+   "Monitor. Analyze. Act. — AI-powered social listening 
+    for patient safety signals across India"
+
+4. Make sure all new DB columns are added safely using:
+   ALTER TABLE signals ADD COLUMN IF NOT EXISTS ...
+   (or check if column exists before adding)
+
+5. Update the seed data (server/seed.js) to populate
+   sentiment, confidence_score, pii_detected for all 
+   50 existing signals with realistic values:
+   - ~70% negative sentiment (healthcare complaints)
+   - ~20% neutral
+   - ~10% positive
+   - confidence_score between 0.72 and 0.96
+   - ~15% of signals have pii_detected = true
+   - Assign signals to project_id 1, 2, or 3 randomly
+
+6. Rebuild and republish the app after all changes.
+   Verify each new page loads without errors.
+   Confirm /projects, /timeline, /admin, /architecture 
+   all render correctly.
