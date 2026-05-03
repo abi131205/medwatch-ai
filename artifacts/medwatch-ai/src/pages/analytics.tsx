@@ -1,18 +1,18 @@
 import * as React from "react";
-import { 
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
-  ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid 
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid
 } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  useGetTimeseries, 
-  useGetDrugsAnalytics, 
-  useGetHospitalsAnalytics, 
+import {
+  useGetTimeseries,
+  useGetDrugsAnalytics,
+  useGetHospitalsAnalytics,
   useGetDistrictsAnalytics,
   useGetSignalsSummary
 } from "@workspace/api-client-react";
+import { ChevronUp, ChevronDown } from "lucide-react";
 
 const COLORS = {
   primary: "#6366F1",
@@ -23,24 +23,94 @@ const COLORS = {
   low: "#22C55E",
 };
 
+type SortKey = "district" | "total" | "critical" | "top_category" | "top_drug";
+type SortDir = "asc" | "desc";
+
 export default function Analytics() {
   const { data: timeseries, isLoading: loadingTimeseries } = useGetTimeseries();
   const { data: topDrugs, isLoading: loadingDrugs } = useGetDrugsAnalytics();
   const { data: topHospitals, isLoading: loadingHospitals } = useGetHospitalsAnalytics();
-  const { data: districts, isLoading: loadingDistricts } = useGetDistrictsAnalytics();
+  const { data: rawDistricts, isLoading: loadingDistricts } = useGetDistrictsAnalytics();
   const { data: summary, isLoading: loadingSummary } = useGetSignalsSummary();
+
+  const [sortKey, setSortKey] = React.useState<SortKey>("total");
+  const [sortDir, setSortDir] = React.useState<SortDir>("desc");
+
+  const districtsMeta = rawDistricts as any;
+  const districts: any[] = Array.isArray(rawDistricts)
+    ? rawDistricts
+    : districtsMeta?.districts || [];
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
+
+  const sortedDistricts = React.useMemo(() => {
+    return [...districts].sort((a, b) => {
+      const av = a[sortKey] ?? "";
+      const bv = b[sortKey] ?? "";
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      return sortDir === "asc"
+        ? String(av).localeCompare(String(bv))
+        : String(bv).localeCompare(String(av));
+    });
+  }, [districts, sortKey, sortDir]);
+
+  const urbanVsRuralData = React.useMemo(() => {
+    const urban = { critical: 0, high: 0, medium: 0, low: 0 };
+    const rural = { critical: 0, high: 0, medium: 0, low: 0 };
+    for (const d of districts) {
+      const bucket = d.location_type === "urban" ? urban : rural;
+      bucket.critical += d.critical || 0;
+      bucket.high += d.high || 0;
+      bucket.medium += d.medium || 0;
+      bucket.low += d.low || 0;
+    }
+    return [
+      { risk: "Critical", urban: urban.critical, rural: rural.critical },
+      { risk: "High", urban: urban.high, rural: rural.high },
+      { risk: "Medium", urban: urban.medium, rural: rural.medium },
+      { risk: "Low", urban: urban.low, rural: rural.low },
+    ];
+  }, [districts]);
 
   const categoryData = summary?.by_category ? Object.entries(summary.by_category).map(([name, value]) => ({
     name: name.replace("_", " ").toUpperCase(),
     value
   })) : [];
-  
   const categoryColors = [COLORS.primary, COLORS.secondary, COLORS.destructive, COLORS.high];
 
   const locationData = summary?.by_location_type ? [
     { name: "Urban", value: summary.by_location_type.urban },
     { name: "Rural", value: summary.by_location_type.rural },
   ] : [];
+
+  const SortIcon = ({ col }: { col: SortKey }) => {
+    if (sortKey !== col) return <ChevronUp className="w-3 h-3 opacity-20" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-3 h-3 text-primary" />
+      : <ChevronDown className="w-3 h-3 text-primary" />;
+  };
+
+  const SortableHead = ({ col, label, right }: { col: SortKey; label: string; right?: boolean }) => (
+    <th
+      className={`px-3 py-3 text-xs font-semibold text-muted-foreground uppercase cursor-pointer hover:text-foreground select-none ${right ? "text-right" : "text-left"}`}
+      onClick={() => handleSort(col)}
+    >
+      <span className="flex items-center gap-1 justify-end">
+        {right && <SortIcon col={col} />}
+        {label}
+        {!right && <SortIcon col={col} />}
+      </span>
+    </th>
+  );
 
   return (
     <div className="space-y-6">
@@ -52,7 +122,7 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {/* Signals per hour (Line) */}
+        {/* Signal Volume Timeseries */}
         <Card className="glass-card lg:col-span-2 xl:col-span-3">
           <CardHeader>
             <CardTitle>Signal Volume (24h)</CardTitle>
@@ -62,10 +132,10 @@ export default function Analytics() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={timeseries}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2D3E" vertical={false} />
-                  <XAxis dataKey="hour" stroke="#94A3B8" fontSize={12} tickFormatter={(val) => val.split('T')[1].substring(0, 5)} />
+                  <XAxis dataKey="hour" stroke="#94A3B8" fontSize={12} tickFormatter={(val) => val.split("T")[1].substring(0, 5)} />
                   <YAxis stroke="#94A3B8" fontSize={12} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1A1D27', borderColor: '#2A2D3E', color: '#F1F5F9' }} />
-                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: "#1A1D27", borderColor: "#2A2D3E", color: "#F1F5F9" }} />
+                  <Legend wrapperStyle={{ fontSize: "12px" }} />
                   <Line type="monotone" dataKey="critical" stroke={COLORS.destructive} strokeWidth={2} dot={false} name="Critical" />
                   <Line type="monotone" dataKey="high" stroke={COLORS.high} strokeWidth={2} dot={false} name="High" />
                   <Line type="monotone" dataKey="medium" stroke={COLORS.medium} strokeWidth={2} dot={false} name="Medium" />
@@ -88,7 +158,7 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2D3E" horizontal={false} />
                   <XAxis type="number" stroke="#94A3B8" fontSize={12} />
                   <YAxis dataKey="drug_name" type="category" stroke="#94A3B8" fontSize={11} width={80} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1A1D27', borderColor: '#2A2D3E', color: '#F1F5F9' }} cursor={{fill: '#2A2D3E'}} />
+                  <Tooltip contentStyle={{ backgroundColor: "#1A1D27", borderColor: "#2A2D3E", color: "#F1F5F9" }} cursor={{ fill: "#2A2D3E" }} />
                   <Bar dataKey="count" fill={COLORS.primary} radius={[0, 4, 4, 0]} name="Reports" />
                 </BarChart>
               </ResponsiveContainer>
@@ -108,7 +178,7 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2D3E" horizontal={false} />
                   <XAxis type="number" stroke="#94A3B8" fontSize={12} />
                   <YAxis dataKey="hospital_name" type="category" stroke="#94A3B8" fontSize={11} width={80} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1A1D27', borderColor: '#2A2D3E', color: '#F1F5F9' }} cursor={{fill: '#2A2D3E'}} />
+                  <Tooltip contentStyle={{ backgroundColor: "#1A1D27", borderColor: "#2A2D3E", color: "#F1F5F9" }} cursor={{ fill: "#2A2D3E" }} />
                   <Bar dataKey="count" fill={COLORS.secondary} radius={[0, 4, 4, 0]} name="Reports" />
                 </BarChart>
               </ResponsiveContainer>
@@ -138,15 +208,37 @@ export default function Analytics() {
                       <Cell key={`cell-${index}`} fill={categoryColors[index % categoryColors.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#1A1D27', borderColor: '#2A2D3E', color: '#F1F5F9' }} />
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: "#1A1D27", borderColor: "#2A2D3E", color: "#F1F5F9" }} />
+                  <Legend wrapperStyle={{ fontSize: "11px" }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
-        {/* Location Type Distribution */}
+        {/* Urban vs Rural Risk Distribution — Grouped Bar */}
+        <Card className="glass-card lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Urban vs Rural Risk Distribution</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {loadingDistricts ? <Skeleton className="h-full w-full" /> : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={urbanVsRuralData} margin={{ top: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2A2D3E" vertical={false} />
+                  <XAxis dataKey="risk" stroke="#94A3B8" fontSize={12} />
+                  <YAxis stroke="#94A3B8" fontSize={12} />
+                  <Tooltip contentStyle={{ backgroundColor: "#1A1D27", borderColor: "#2A2D3E", color: "#F1F5F9" }} cursor={{ fill: "#2A2D3E" }} />
+                  <Legend wrapperStyle={{ fontSize: "12px" }} />
+                  <Bar dataKey="urban" name="Urban" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="rural" name="Rural" fill={COLORS.secondary} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Simple Urban vs Rural totals bar */}
         <Card className="glass-card">
           <CardHeader>
             <CardTitle>Urban vs Rural Reports</CardTitle>
@@ -158,7 +250,7 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2D3E" vertical={false} />
                   <XAxis dataKey="name" stroke="#94A3B8" fontSize={12} />
                   <YAxis stroke="#94A3B8" fontSize={12} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1A1D27', borderColor: '#2A2D3E', color: '#F1F5F9' }} cursor={{fill: '#2A2D3E'}} />
+                  <Tooltip contentStyle={{ backgroundColor: "#1A1D27", borderColor: "#2A2D3E", color: "#F1F5F9" }} cursor={{ fill: "#2A2D3E" }} />
                   <Bar dataKey="value" name="Signals" radius={[4, 4, 0, 0]}>
                     {locationData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={index === 0 ? COLORS.primary : COLORS.secondary} />
@@ -170,37 +262,55 @@ export default function Analytics() {
           </CardContent>
         </Card>
 
-        {/* District Risk Table */}
-        <Card className="glass-card lg:col-span-2">
+        {/* District Hotspot Table — Sortable */}
+        <Card className="glass-card lg:col-span-2 xl:col-span-3">
           <CardHeader>
-            <CardTitle>District Risk Breakdown</CardTitle>
+            <CardTitle>District Hotspot Table</CardTitle>
           </CardHeader>
-          <CardContent className="h-[300px] overflow-auto">
-            {loadingDistricts ? <Skeleton className="h-full w-full" /> : (
-              <Table>
-                <TableHeader className="bg-card-border/50 sticky top-0">
-                  <TableRow className="border-card-border">
-                    <TableHead>District</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right text-destructive">Critical</TableHead>
-                    <TableHead className="text-right text-high">High</TableHead>
-                    <TableHead className="text-right text-medium">Medium</TableHead>
-                    <TableHead className="text-right text-low">Low</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {districts?.map((d) => (
-                    <TableRow key={d.district} className="border-card-border">
-                      <TableCell className="font-medium">{d.district}</TableCell>
-                      <TableCell className="text-right font-mono">{d.total}</TableCell>
-                      <TableCell className="text-right font-mono text-destructive">{d.critical}</TableCell>
-                      <TableCell className="text-right font-mono text-high">{d.high}</TableCell>
-                      <TableCell className="text-right font-mono text-medium">{d.medium}</TableCell>
-                      <TableCell className="text-right font-mono text-low">{d.low}</TableCell>
-                    </TableRow>
+          <CardContent className="overflow-auto max-h-[400px] p-0">
+            {loadingDistricts ? (
+              <div className="p-4 space-y-2">
+                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-card-border/60 sticky top-0 z-10">
+                  <tr>
+                    <SortableHead col="district" label="District" />
+                    <th className="px-3 py-3 text-xs font-semibold text-muted-foreground uppercase text-left">Type</th>
+                    <SortableHead col="total" label="Total" right />
+                    <SortableHead col="critical" label="Critical" right />
+                    <SortableHead col="top_category" label="Top Category" />
+                    <SortableHead col="top_drug" label="Top Drug" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedDistricts.map((d, i) => (
+                    <tr
+                      key={d.district}
+                      className="border-t border-card-border hover:bg-card-border/20 transition-colors"
+                      style={{ backgroundColor: i % 2 === 0 ? "#1A1D27" : "#151821" }}
+                    >
+                      <td className="px-3 py-2.5 font-medium">{d.district}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          d.location_type === "urban"
+                            ? "bg-primary/20 text-primary"
+                            : "bg-[#22C55E]/20 text-[#22C55E]"
+                        }`}>
+                          {d.location_type || "unknown"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono">{d.total}</td>
+                      <td className={`px-3 py-2.5 text-right font-mono font-bold ${d.critical > 0 ? "text-destructive bg-destructive/5" : "text-muted-foreground"}`}>
+                        {d.critical > 0 ? d.critical : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground capitalize">{d.top_category?.replace("_", " ") || "—"}</td>
+                      <td className="px-3 py-2.5 text-muted-foreground">{d.top_drug || "—"}</td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             )}
           </CardContent>
         </Card>

@@ -1,18 +1,59 @@
 import * as React from "react";
 import { Link } from "wouter";
-import { Download, Search, Filter } from "lucide-react";
+import { Download, Search, Filter, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGetSignals } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import * as Papa from "papaparse";
 
+const RISK_LEVELS = ["critical", "high", "medium", "low"] as const;
+
 export default function Signals() {
   const [search, setSearch] = React.useState("");
-  const { data, isLoading } = useGetSignals({ limit: 50, search: search || undefined });
+  const [selectedRisks, setSelectedRisks] = React.useState<string[]>([]);
+  const [category, setCategory] = React.useState<string>("");
+  const [sourceType, setSourceType] = React.useState<string>("");
+  const [fromDate, setFromDate] = React.useState<string>("");
+  const [toDate, setToDate] = React.useState<string>("");
+  const [showFilters, setShowFilters] = React.useState(false);
+
+  const params: Record<string, any> = { limit: 100 };
+  if (search) params.search = search;
+  if (selectedRisks.length === 1) params.risk_level = selectedRisks[0];
+  if (selectedRisks.length > 1) params.risk_level = selectedRisks.join(",") as any;
+  if (category) params.category = category as any;
+  if (sourceType) params.source_type = sourceType as any;
+  if (fromDate) params.from_date = fromDate;
+  if (toDate) params.to_date = toDate;
+
+  const { data, isLoading } = useGetSignals(params);
+
+  const activeFilterCount = [
+    selectedRisks.length > 0,
+    !!category,
+    !!sourceType,
+    !!fromDate || !!toDate,
+  ].filter(Boolean).length;
+
+  const clearAllFilters = () => {
+    setSearch("");
+    setSelectedRisks([]);
+    setCategory("");
+    setSourceType("");
+    setFromDate("");
+    setToDate("");
+  };
+
+  const toggleRisk = (risk: string) => {
+    setSelectedRisks(prev =>
+      prev.includes(risk) ? prev.filter(r => r !== risk) : [...prev, risk]
+    );
+  };
 
   const exportCSV = () => {
     if (!data?.signals) return;
@@ -25,63 +66,164 @@ export default function Signals() {
       Status: s.status,
       Text: s.raw_text
     })));
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `signals_export_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`);
+    link.setAttribute("download", `signals_export_${format(new Date(), "yyyyMMdd_HHmmss")}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const getRiskColor = (risk: string) => {
-    switch(risk) {
-      case 'critical': return 'bg-destructive/20 text-destructive border-destructive/30';
-      case 'high': return 'bg-high/20 text-high border-high/30';
-      case 'medium': return 'bg-medium/20 text-medium border-medium/30';
-      case 'low': return 'bg-low/20 text-low border-low/30';
-      default: return 'bg-muted text-muted-foreground';
+  const getRiskStyle = (risk: string) => {
+    switch (risk) {
+      case "critical": return "bg-destructive/20 text-destructive border-destructive/30";
+      case "high": return "bg-[#F97316]/20 text-[#F97316] border-[#F97316]/30";
+      case "medium": return "bg-[#EAB308]/20 text-[#EAB308] border-[#EAB308]/30";
+      case "low": return "bg-[#22C55E]/20 text-[#22C55E] border-[#22C55E]/30";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
   return (
-    <div className="space-y-6 flex flex-col h-[calc(100vh-2rem)] md:h-[calc(100vh-3rem)]">
-      <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center shrink-0">
+    <div className="space-y-4 flex flex-col h-[calc(100vh-2rem)] md:h-[calc(100vh-3rem)]">
+      {/* Header row */}
+      <div className="flex flex-col sm:flex-row justify-between gap-3 items-start sm:items-center shrink-0">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Signal Feed</h1>
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-500 text-xs font-semibold">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             LIVE
           </div>
+          {data && <span className="text-xs text-muted-foreground">{data.total} signals</span>}
         </div>
-        
+
         <div className="flex w-full sm:w-auto items-center gap-2">
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search signals..." 
+            <Input
+              placeholder="Search signals..."
               className="pl-9 bg-card border-card-border"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button variant="outline" size="icon" className="shrink-0 bg-card border-card-border hover:bg-card-border">
-            <Filter className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            className={`shrink-0 bg-card border-card-border hover:bg-card-border relative ${showFilters ? "border-primary text-primary" : ""}`}
+            onClick={() => setShowFilters(v => !v)}
+          >
+            <Filter className="h-4 w-4 mr-1" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-1 bg-primary text-primary-foreground rounded-full text-[10px] w-4 h-4 flex items-center justify-center font-bold">
+                {activeFilterCount}
+              </span>
+            )}
           </Button>
-          <Button variant="outline" onClick={exportCSV} className="shrink-0 bg-card border-card-border hover:bg-card-border">
+          <Button variant="outline" onClick={exportCSV} size="sm" className="shrink-0 bg-card border-card-border hover:bg-card-border">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
         </div>
       </div>
 
+      {/* Filter Panel */}
+      {showFilters && (
+        <Card className="glass-card p-4 shrink-0 animate-in slide-in-from-top-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Risk Level checkboxes */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Risk Level</label>
+              <div className="flex flex-wrap gap-2">
+                {RISK_LEVELS.map(risk => (
+                  <button
+                    key={risk}
+                    onClick={() => toggleRisk(risk)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase border transition-all ${
+                      selectedRisks.includes(risk) ? getRiskStyle(risk) : "border-card-border text-muted-foreground hover:border-muted"
+                    }`}
+                  >
+                    {risk}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Category */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Category</label>
+              <Select value={category || "all"} onValueChange={v => setCategory(v === "all" ? "" : v)}>
+                <SelectTrigger className="bg-background h-9 text-sm">
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  <SelectItem value="adr">ADR</SelectItem>
+                  <SelectItem value="hospital_issue">Hospital Issue</SelectItem>
+                  <SelectItem value="outbreak_signal">Outbreak Signal</SelectItem>
+                  <SelectItem value="treatment_complication">Treatment Complication</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Source */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Source</label>
+              <Select value={sourceType || "all"} onValueChange={v => setSourceType(v === "all" ? "" : v)}>
+                <SelectTrigger className="bg-background h-9 text-sm">
+                  <SelectValue placeholder="All sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All sources</SelectItem>
+                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  <SelectItem value="social_media">Social Media</SelectItem>
+                  <SelectItem value="hospital_form">Hospital Form</SelectItem>
+                  <SelectItem value="field_worker">Field Worker</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date Range */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Date Range</label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={e => setFromDate(e.target.value)}
+                  className="bg-background h-9 text-xs"
+                />
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={e => setToDate(e.target.value)}
+                  className="bg-background h-9 text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {activeFilterCount > 0 && (
+            <div className="mt-3 pt-3 border-t border-card-border flex justify-end">
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground hover:text-foreground">
+                <X className="w-3.5 h-3.5 mr-1" />
+                Clear all filters
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Table */}
       <Card className="glass-card flex-1 flex flex-col overflow-hidden">
         <div className="overflow-auto flex-1">
           <Table>
             <TableHeader className="bg-card-border/50 sticky top-0 z-10">
               <TableRow className="border-card-border hover:bg-transparent">
-                <TableHead className="w-24">ID</TableHead>
+                <TableHead className="w-20">ID</TableHead>
                 <TableHead>Time</TableHead>
                 <TableHead>Risk</TableHead>
                 <TableHead>Category</TableHead>
@@ -112,16 +254,21 @@ export default function Signals() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
-                      {format(new Date(sig.created_at), 'MMM d, HH:mm')}
+                      {format(new Date(sig.created_at), "MMM d, HH:mm")}
                     </TableCell>
                     <TableCell>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase border ${getRiskColor(sig.risk_level || '')}`}>
-                        {sig.risk_level === 'critical' ? '🔴 ' : sig.risk_level === 'high' ? '🟠 ' : sig.risk_level === 'medium' ? '🟡 ' : '🟢 '}
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase border ${getRiskStyle(sig.risk_level || "")}`}>
+                        {sig.risk_level === "critical" ? "🔴 " : sig.risk_level === "high" ? "🟠 " : sig.risk_level === "medium" ? "🟡 " : "🟢 "}
                         {sig.risk_level}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm capitalize">{sig.category?.replace('_', ' ')}</TableCell>
-                    <TableCell className="text-sm">{sig.location_district || 'Unknown'}</TableCell>
+                    <TableCell className="text-sm capitalize">{sig.category?.replace("_", " ")}</TableCell>
+                    <TableCell className="text-sm">
+                      <div>{sig.location_district || "Unknown"}</div>
+                      {sig.location_type && (
+                        <div className="text-xs text-muted-foreground">{sig.location_type}</div>
+                      )}
+                    </TableCell>
                     <TableCell className="hidden md:table-cell text-sm max-w-md truncate">
                       {sig.nlp_summary || sig.raw_text}
                     </TableCell>

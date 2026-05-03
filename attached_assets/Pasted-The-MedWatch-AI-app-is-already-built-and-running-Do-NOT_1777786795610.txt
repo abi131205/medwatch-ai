@@ -1,0 +1,196 @@
+The MedWatch AI app is already built and running. Do NOT rebuild it from scratch. 
+Only make the following targeted fixes and additions. Read existing code carefully before editing.
+
+---
+
+FIX 1: Auto-Running Cluster Detection on Server Startup
+
+In server/index.js, after the database is initialized and seeded, add:
+- Call POST /api/alerts/check automatically every 5 minutes using setInterval
+- Also call it once immediately on startup (after a 3-second delay to let seed complete)
+- Log to console: "Cluster detection run — X new alerts created"
+
+In server/routes/alerts.js, verify the /check endpoint logic:
+- Query: SELECT location_district, COUNT(*) as cnt FROM signals 
+  WHERE risk_level = 'critical' AND created_at >= datetime('now', '-24 hours') 
+  GROUP BY location_district HAVING cnt >= 3
+- For each matching district that does NOT already have an active alert: 
+  INSERT a new alert with cluster_summary like: 
+  "{cnt} critical signals detected in {district} within the last 24 hours. Immediate review recommended."
+- Return { new_alerts: [...], count: N }
+
+---
+
+FIX 2: Trend Detection Panel on Dashboard
+
+On the Dashboard page (client/src/pages/Dashboard.jsx), add a "Trending Signals" panel 
+in the right column (40% width). 
+
+Fetch this data by calling GET /api/signals?limit=200 and computing client-side:
+- Group signals by (drug_name + location_district) where drug_name is not null
+- Group signals by (category + location_district)
+- Find groups with count >= 2 in the last 24 hours
+- Sort by count descending, take top 5
+
+Render each trend as a card with:
+- A colored left border (risk color of the most severe signal in that group)
+- Icon: pill icon for drug-based trends, map-pin for district trends
+- Bold text: "{count}× {drug_name || category} signals in {district}"
+- Subtext: "Last {timeAgo} — {source_type distribution}"
+- A small RiskBadge showing the highest risk level in the group
+- If count >= 3: add a pulsing red dot and label "⚠ Emerging Pattern"
+
+If no trends found, show: "No emerging patterns in the last 24 hours — monitoring active" 
+with a green dot.
+
+---
+
+FIX 3: Live Signal Feed Auto-Refresh
+
+Add POST /api/signals/simulate endpoint to server/routes/signals.js:
+- Pick randomly from an array of 10 hardcoded signal templates (vary district, drug, text)
+- Mutate: set created_at = NOW(), incident_date = today
+- Insert into signals table WITHOUT calling Claude API — use pre-filled NLP values
+- Return the new signal object
+
+On the Dashboard page, add a useEffect:
+- Every 15 seconds: call POST /api/signals/simulate then re-fetch /api/signals?limit=20
+- When a new signal arrives: 
+  - Prepend it to the top of the feed with a brief yellow highlight animation 
+    (set a 'isNew' flag for 3 seconds, then clear it)
+  - If risk_level is 'critical': show a toast notification at bottom-right:
+    "🔴 New Critical Signal — {district}"
+  - Update KPI card counts (+1 to total, +1 to relevant risk bucket)
+- Add a "LIVE" badge with a pulsing green dot next to the feed section header
+
+---
+
+FIX 4: Urban vs Rural Analytics Comparison
+
+In server/routes/analytics.js, ensure GET /api/analytics/districts returns:
+{
+  districts: [
+    { 
+      district: "Bengaluru", 
+      location_type: "urban", 
+      total: N, 
+      critical: N, 
+      high: N, 
+      medium: N, 
+      low: N,
+      top_category: "adr",
+      top_drug: "Metformin"
+    },
+    ...
+  ],
+  urban_total: N,
+  rural_total: N,
+  urban_critical: N,
+  rural_critical: N
+}
+
+On the Analytics page, add TWO new chart sections:
+
+Chart A — "Urban vs Rural Signal Volume":
+Use Recharts BarChart with grouped bars (two bars per risk level):
+- X-axis: risk levels (Critical, High, Medium, Low)  
+- Two bars per group: Urban (indigo #6366F1) and Rural (cyan #22D3EE)
+- Legend showing Urban vs Rural
+- Title: "Urban vs Rural Risk Distribution"
+
+Chart B — "District Hotspot Table":
+A sortable table below the charts:
+- Columns: District | Type (Urban/Rural badge) | Total Signals | Critical | Top Category | Top Drug
+- Sortable by clicking column headers (toggle asc/desc)
+- Row background alternates between #1A1D27 and #151821
+- Critical count > 0: highlight that cell in red
+- Add a "urban" or "rural" pill badge in the Type column:
+  Urban: indigo background, Rural: green background
+
+---
+
+FIX 5: WhatsApp Bulk Signal Simulation Panel
+
+On the Submit Report page (/submit), add a new section below the form titled:
+"📱 Simulate Bulk Incoming Signals" (for demo purposes)
+
+Add a panel with:
+- Dropdown to select source: "WhatsApp Group Messages" | "Social Media Scrape" | "Field Worker SMS"
+- Dropdown to select district: all Karnataka districts
+- Slider (input range 3-10): "Number of signals to inject"
+- "Inject Signals" button (orange/amber colored)
+
+On click:
+- Call POST /api/signals/bulk-simulate with { source_type, district, count }
+- Server endpoint inserts `count` number of pre-templated signals for that district + source
+- All inserted with random risk levels weighted toward high/critical for dramatic effect
+- After insertion: auto-run cluster detection (call /api/alerts/check)
+- Show result: "✅ {count} signals injected from {source} in {district}. {n} alerts triggered."
+- Redirect to Dashboard after 2 seconds so judges see the live feed update
+
+Add POST /api/signals/bulk-simulate to server/routes/signals.js:
+- Accept { source_type, district, count }
+- Insert `count` signals using templates varied by district and source_type
+- Trigger /api/alerts/check logic inline
+- Return { inserted: count, alerts_triggered: N }
+
+---
+
+FIX 6: Dashboard Critical Alert Banner
+
+On the Dashboard page, fetch /api/alerts on mount and every 30 seconds.
+
+If any alerts have status = 'active':
+- Show a full-width pulsing banner at the very top of the dashboard (above KPI cards):
+  Background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))
+  Border: 1px solid rgba(239,68,68,0.3)
+  Left: pulsing red circle animation
+  Text: "⚠ ACTIVE ALERT — {N} district(s) showing critical signal clusters"
+  Right: "View Alerts →" button that navigates to /alerts page
+- If no active alerts: show a green banner: "✅ System Monitoring Active — No critical clusters detected"
+
+---
+
+FIX 7: Signal Feed — Ensure Filters Actually Work
+
+On the /signals page, verify all filter controls send correct query parameters to the API:
+- Search text → ?search={text} (backend should do WHERE raw_text LIKE '%text%')
+- Risk level checkboxes → ?risk_level=critical,high (comma-separated, backend splits and uses IN clause)
+- Category dropdown → ?category=adr
+- Source dropdown → ?source_type=whatsapp
+- Date range → ?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD
+
+In server/routes/signals.js GET /api/signals:
+- Parse risk_level as comma-separated list if it contains commas → use SQL IN (?,?,?)
+- Parse search param → add: AND raw_text LIKE '%' || ? || '%'
+- All other filters: exact match WHERE clause
+- Always ORDER BY created_at DESC
+
+---
+
+GENERAL POLISH FIXES:
+
+1. Ensure all 4 KPI cards on Dashboard show real data from /api/signals/stats/summary 
+   and not hardcoded zeros. If the endpoint returns null values, default to 0.
+
+2. On the Map page, ensure circle markers are visible — minimum radius should be 15px 
+   regardless of signal count (so even single-signal districts are visible on the map).
+   Add a number label inside each circle showing the signal count.
+
+3. Add a loading skeleton (gray animated shimmer div) to every chart and every card 
+   that loads async data. While loading, show 3 skeleton bars/blocks.
+
+4. Ensure the /submit form works end-to-end:
+   - All fields save to state correctly
+   - POST to /api/signals/analyze fires with correct body
+   - Response is displayed as an "Analysis Result" card below the form before final save
+   - A success toast appears and form resets
+
+5. Make the app fully responsive for 1280px+ desktop screens — sidebar fixed at 240px, 
+   main content uses remaining width with max-width: 1400px centered.
+
+After all fixes, restart the server and verify:
+- Dashboard shows live pulsing feed
+- Alert banner appears (run cluster detection on startup to ensure alerts exist)
+- Analytics shows Urban vs Rural comparison chart
+- Submit → Inject Bulk Signals → watch dashboard update in real time

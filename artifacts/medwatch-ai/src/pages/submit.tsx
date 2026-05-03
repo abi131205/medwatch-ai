@@ -2,16 +2,24 @@ import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useLocation } from "wouter";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useAnalyzeSignal, getGetSignalsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Smartphone, Zap } from "lucide-react";
+
+const KARNATAKA_DISTRICTS = [
+  "Bengaluru", "Mysuru", "Hubli", "Mangaluru", "Belagavi", "Kalaburagi",
+  "Davangere", "Bellary", "Vijayapura", "Bidar", "Raichur", "Kolar",
+  "Dharwad", "Tumkur", "Hassan", "Shimoga", "Udupi", "Chikkamagaluru",
+];
 
 const formSchema = z.object({
   reporter_type: z.string().min(1, "Reporter type is required"),
@@ -28,9 +36,17 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function SubmitReport() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const analyzeSignal = useAnalyzeSignal();
   const [result, setResult] = React.useState<any>(null);
+
+  // Bulk simulation state
+  const [bulkSource, setBulkSource] = React.useState("whatsapp");
+  const [bulkDistrict, setBulkDistrict] = React.useState("Bengaluru");
+  const [bulkCount, setBulkCount] = React.useState([5]);
+  const [bulkLoading, setBulkLoading] = React.useState(false);
+  const [bulkResult, setBulkResult] = React.useState<{ inserted: number; alerts_triggered: number } | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -42,7 +58,7 @@ export default function SubmitReport() {
       raw_text: "",
       drug_name: "",
       hospital_name: "",
-      incident_date: new Date().toISOString().split('T')[0],
+      incident_date: new Date().toISOString().split("T")[0],
     },
   });
 
@@ -55,7 +71,6 @@ export default function SubmitReport() {
           title: "Report Submitted",
           description: "Signal has been successfully analyzed and logged.",
         });
-        
         setTimeout(() => {
           form.reset();
           setResult(null);
@@ -71,23 +86,55 @@ export default function SubmitReport() {
     });
   };
 
+  const handleBulkSimulate = async () => {
+    setBulkLoading(true);
+    setBulkResult(null);
+    try {
+      const response = await fetch("/api/signals/bulk-simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_type: bulkSource,
+          district: bulkDistrict,
+          count: bulkCount[0],
+        }),
+      });
+      const data = await response.json();
+      setBulkResult({ inserted: data.inserted, alerts_triggered: data.alerts_triggered });
+      queryClient.invalidateQueries({ queryKey: getGetSignalsQueryKey() });
+      toast({
+        title: "Signals Injected",
+        description: `${data.inserted} signals injected. ${data.alerts_triggered} alert(s) triggered.`,
+      });
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 2000);
+    } catch {
+      toast({
+        title: "Injection Failed",
+        description: "An error occurred while injecting signals.",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const getRiskColor = (risk: string) => {
-    switch(risk) {
-      case 'critical': return 'text-destructive';
-      case 'high': return 'text-high';
-      case 'medium': return 'text-medium';
-      case 'low': return 'text-low';
-      default: return 'text-muted-foreground';
+    switch (risk) {
+      case "critical": return "text-destructive";
+      case "high": return "text-[#F97316]";
+      case "medium": return "text-[#EAB308]";
+      case "low": return "text-[#22C55E]";
+      default: return "text-muted-foreground";
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Submit Manual Report</h1>
-          <p className="text-muted-foreground">Log observations, adverse events, or capacity issues for AI analysis.</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">Submit Manual Report</h1>
+        <p className="text-muted-foreground">Log observations, adverse events, or capacity issues for AI analysis.</p>
       </div>
 
       {result && (
@@ -108,7 +155,7 @@ export default function SubmitReport() {
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Category:</span>
-                <span className="ml-2 font-medium capitalize">{result.category?.replace('_', ' ')}</span>
+                <span className="ml-2 font-medium capitalize">{result.category?.replace("_", " ")}</span>
               </div>
             </div>
             <div>
@@ -190,16 +237,9 @@ export default function SubmitReport() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Bengaluru">Bengaluru</SelectItem>
-                          <SelectItem value="Mysuru">Mysuru</SelectItem>
-                          <SelectItem value="Hubli">Hubli</SelectItem>
-                          <SelectItem value="Mangaluru">Mangaluru</SelectItem>
-                          <SelectItem value="Belagavi">Belagavi</SelectItem>
-                          <SelectItem value="Kalaburagi">Kalaburagi</SelectItem>
-                          <SelectItem value="Davangere">Davangere</SelectItem>
-                          <SelectItem value="Bellary">Bellary</SelectItem>
-                          <SelectItem value="Vijayapura">Vijayapura</SelectItem>
-                          <SelectItem value="Bidar">Bidar</SelectItem>
+                          {KARNATAKA_DISTRICTS.map(d => (
+                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -251,8 +291,8 @@ export default function SubmitReport() {
                   <FormItem>
                     <FormLabel>Incident Description</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Describe the adverse event, drug reaction, or resource shortage in detail..." 
+                      <Textarea
+                        placeholder="Describe the adverse event, drug reaction, or resource shortage in detail..."
                         className="min-h-[150px] bg-background resize-none"
                         {...field}
                       />
@@ -306,6 +346,93 @@ export default function SubmitReport() {
               </div>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+
+      {/* Bulk Simulation Panel */}
+      <Card className="glass-card border-amber-500/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-amber-400">
+            <Smartphone className="w-5 h-5" />
+            📱 Simulate Bulk Incoming Signals
+          </CardTitle>
+          <CardDescription>For demo purposes — inject multiple signals from field sources to test cluster detection.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid md:grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Source Channel</label>
+              <Select value={bulkSource} onValueChange={setBulkSource}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="whatsapp">WhatsApp Group Messages</SelectItem>
+                  <SelectItem value="social_media">Social Media Scrape</SelectItem>
+                  <SelectItem value="field_worker">Field Worker SMS</SelectItem>
+                  <SelectItem value="hospital_form">Hospital Form Batch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Target District</label>
+              <Select value={bulkDistrict} onValueChange={setBulkDistrict}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {KARNATAKA_DISTRICTS.map(d => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-medium">Number of Signals to Inject</label>
+              <span className="text-2xl font-bold text-amber-400">{bulkCount[0]}</span>
+            </div>
+            <Slider
+              min={3}
+              max={10}
+              step={1}
+              value={bulkCount}
+              onValueChange={setBulkCount}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>3</span>
+              <span>10</span>
+            </div>
+          </div>
+
+          {bulkResult && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>
+                ✅ {bulkResult.inserted} signals injected from {bulkSource.replace("_", " ")} in {bulkDistrict}.{" "}
+                {bulkResult.alerts_triggered > 0
+                  ? `${bulkResult.alerts_triggered} alert(s) triggered.`
+                  : "No new alerts triggered."}{" "}
+                Redirecting to dashboard…
+              </span>
+            </div>
+          )}
+
+          <Button
+            className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold"
+            onClick={handleBulkSimulate}
+            disabled={bulkLoading}
+          >
+            {bulkLoading ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Injecting Signals...</>
+            ) : (
+              <><Zap className="w-4 h-4 mr-2" /> Inject {bulkCount[0]} Signals</>
+            )}
+          </Button>
         </CardContent>
       </Card>
     </div>

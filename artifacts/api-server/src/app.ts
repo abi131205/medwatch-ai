@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { runSeed } from "./lib/seed";
+import { runClusterDetection } from "./lib/clusterDetection";
 
 const app: Express = express();
 
@@ -32,7 +33,16 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
-// Run seed on startup
-runSeed().catch((err) => logger.error(err, "Seed failed"));
+runSeed()
+  .then(() => {
+    setTimeout(() => {
+      runClusterDetection().catch((err) => logger.error(err, "Initial cluster detection failed"));
+    }, 3000);
+
+    setInterval(() => {
+      runClusterDetection().catch((err) => logger.error(err, "Scheduled cluster detection failed"));
+    }, 5 * 60 * 1000);
+  })
+  .catch((err) => logger.error(err, "Seed failed"));
 
 export default app;

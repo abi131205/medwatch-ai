@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
-import { signalsTable, alertsTable } from "@workspace/db";
-import { eq, gte, and, desc } from "drizzle-orm";
+import { alertsTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
+import { runClusterDetection } from "../lib/clusterDetection";
 
 const router = Router();
 
@@ -19,52 +20,8 @@ router.get("/", async (req: Request, res: Response) => {
 // POST /api/alerts/check
 router.post("/check", async (req: Request, res: Response) => {
   try {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    const criticalSignals = await db.select()
-      .from(signalsTable)
-      .where(and(
-        eq(signalsTable.risk_level, "critical"),
-        gte(signalsTable.created_at, twentyFourHoursAgo)
-      ));
-
-    // Group by district
-    const byDistrict = new Map<string, typeof criticalSignals>();
-    for (const signal of criticalSignals) {
-      const district = signal.location_district || "Unknown";
-      if (!byDistrict.has(district)) byDistrict.set(district, []);
-      byDistrict.get(district)!.push(signal);
-    }
-
-    // Get existing active alerts to avoid duplicates
-    const existingAlerts = await db.select().from(alertsTable)
-      .where(and(
-        eq(alertsTable.status, "active"),
-        gte(alertsTable.created_at, twentyFourHoursAgo)
-      ));
-    const alertedDistricts = new Set(existingAlerts.map(a => a.district));
-
-    const newAlerts = [];
-    for (const [district, signals] of byDistrict.entries()) {
-      if (signals.length >= 3 && !alertedDistricts.has(district)) {
-        const categories = [...new Set(signals.map(s => s.category).filter(Boolean))];
-        const drugs = [...new Set(signals.map(s => s.drug_name).filter(Boolean))];
-        const summary = `${signals.length} critical signals detected in ${district} within 24 hours. Categories: ${categories.join(", ")}${drugs.length > 0 ? `. Drugs: ${drugs.join(", ")}` : ""}.`;
-
-        const [alert] = await db.insert(alertsTable).values({
-          district,
-          signal_count: signals.length,
-          time_window_hours: 24,
-          risk_level: "critical",
-          cluster_summary: summary,
-          status: "active",
-        }).returning();
-
-        newAlerts.push(alert);
-      }
-    }
-
-    res.json(newAlerts);
+    const result = await runClusterDetection();
+    res.json(result.new_alerts);
   } catch (err) {
     req.log.error(err, "Error checking alerts");
     res.status(500).json({ error: "Failed to check alerts" });
