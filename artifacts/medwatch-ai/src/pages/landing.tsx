@@ -31,12 +31,10 @@ export default function Landing() {
           </div>
           <h1 className="text-5xl font-bold tracking-tight text-foreground mb-4">MedWatch AI</h1>
           <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-            Monitor. Analyze. Act. — AI-powered social listening<br />
             for patient safety signals across India
           </p>
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary font-semibold">PAN IIT Hackathon 2025</span>
-            <span>Theme 6: Real-Time Social Listening for Patient Safety</span>
+            
           </div>
         </div>
 
