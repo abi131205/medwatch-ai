@@ -17,14 +17,11 @@ An AI-powered social listening PLATFORM that:
 - Uses Claude AI to extract entities, classify risk, detect sentiment and flag PII
 - Generates real-time cluster alerts when safety signals concentrate in a district
 - Provides configurable project-based monitoring for any healthcare use case
-- Shows geographic intelligence across urban (Bengaluru) and rural (Raichur)
+- Shows geographic intelligence across districts in Karnataka
 ## 🏗️ Architecture
 ```
-Data Sources → Ingestion Engine → Claude AI NLP → SQLite DB → Dashboard
-(X, Reddit,     (Pluggable         (Entity           (Signals,   (Projects,
- Quora,          source             extraction,        Alerts,     Map, Feed,
- WhatsApp)       engines)           Risk, Sentiment,   Projects)   Analytics)
-                                    PII, Confidence)
+<img width="1440" height="1568" alt="image" src="https://github.com/user-attachments/assets/e4ad25ed-cbd3-4960-87ce-fa5b34267be5" />
+
 ```
  
 ## ⚡ Key Features
@@ -66,15 +63,6 @@ cd artifacts/medwatch-ai && npm install
 # Run the app
 npm run dev
 ```
- 
-## 📊 Evaluation Criteria Coverage
-| Criteria | Coverage |
-|---|---|
-| Problem Relevance (20%) | Karnataka-specific ADR monitoring with urban + rural coverage |
-| Technical Implementation (25%) | Claude AI NLP pipeline with PII, confidence, explainability |
-| Govt Deployability (25%) | Designed for Karnataka Health Dept, ASHA workers, IAS officers |
-| Demo Quality (15%) | 11 working pages, live public URL, polished dark UI |
-| Scalability (15%) | Generic platform — deployable across all Indian states |
  
 ## 🌍 Real-World Impact
 - Supports Karnataka Health Department pharmacovigilance needs
