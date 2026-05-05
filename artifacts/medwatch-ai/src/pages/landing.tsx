@@ -31,7 +31,6 @@ export default function Landing() {
           </div>
           <h1 className="text-5xl font-bold tracking-tight text-foreground mb-4">MedWatch AI</h1>
           <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-            for patient safety signals across India
           </p>
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
             
