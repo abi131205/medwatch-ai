@@ -20,7 +20,7 @@ An AI-powered social listening PLATFORM that:
 - Shows geographic intelligence across districts in Karnataka
 ## 🏗️ Architecture
 ```
-<img width="1440" height="1568" alt="image" src="https://github.com/user-attachments/assets/e4ad25ed-cbd3-4960-87ce-fa5b34267be5" />
+file:///E:/Downloads/Downloads/medwatch_architecture_diagram.svg
 
 ```
  
