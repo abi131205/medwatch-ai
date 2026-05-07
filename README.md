@@ -126,6 +126,6 @@ npm run dev
 ## 👥 Team Details & Credits
 This project was developed for the **AI for Bharat 2 Hackathon**.
 - **Abijith U K** — Lead Developer & System Architect
-- **[Teammate Name]** — Core Contributor: Research, Data Strategy & Testing
+- **Mayuri Thakre** — Core Contributor: Research, Data Strategy & Testing(Team Name: mayurithakre456_b447)
 
 *Note: Due to platform synchronization constraints on HackerEarth, this project is submitted via the lead's profile but represents a collaborative team effort.*
